@@ -36,7 +36,7 @@ const App: React.FC = () => {
     bp: '', spo2: '', hr: '', rbs: '', weight: ''
   });
 
-  // Doctor Form State
+  // Doctor Form State (Pruned dead fields)
   const initialFormState: VisitData = {
     visitId: '', staffName: '', patientName: '', age: '', contactNumber: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
@@ -259,7 +259,7 @@ const App: React.FC = () => {
   if (isLocked) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900 px-4">
-        <div className="w-full max-w-md bg-slate-800 rounded-[3rem] p-12 border border-slate-700 shadow-2xl space-y-10">
+        <div className="w-full max-md:max-w-md bg-slate-800 rounded-[3rem] p-12 border border-slate-700 shadow-2xl space-y-10">
           <div className="flex flex-col items-center space-y-6">
             <div className="p-6 bg-white rounded-[2rem] shadow-xl"><img src={DEFAULT_LOGO} className="w-24 h-24 object-contain" /></div>
             <h1 className="text-4xl font-black text-white">XzeCure</h1>
