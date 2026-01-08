@@ -1,10 +1,9 @@
 
-import { SavedVisit, DailyVital, VisitData } from '../types';
+import { SavedVisit, DailyVital } from '../types';
 
 const STORAGE_KEY = 'xzecure_visits';
 const VITALS_KEY = 'xzecure_daily_vitals';
 const INVESTIGATIONS_STATUS_KEY = 'xzecure_investigations_status_v2';
-const DRAFT_KEY = 'xzecure_form_draft';
 
 export const storageService = {
   getVisits: (): SavedVisit[] => {
@@ -22,20 +21,9 @@ export const storageService = {
       ...visit,
       id: crypto.randomUUID(),
     };
-    visits.unshift(newVisit); 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits.slice(0, 50))); 
-    // Clear draft once saved
-    localStorage.removeItem(DRAFT_KEY);
+    visits.unshift(newVisit); // Add new at the top
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits.slice(0, 50))); // Keep last 50
     return newVisit;
-  },
-
-  saveFormDraft: (data: VisitData) => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
-  },
-
-  getFormDraft: (): VisitData | null => {
-    const data = localStorage.getItem(DRAFT_KEY);
-    return data ? JSON.parse(data) : null;
   },
 
   getDailyVitals: (): DailyVital[] => {
@@ -55,7 +43,7 @@ export const storageService = {
       timestamp: new Date().toISOString(),
     };
     vitals.unshift(newVital);
-    localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30))); 
+    localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30))); // Keep last 30 readings
     return newVital;
   },
 
@@ -89,5 +77,13 @@ export const storageService = {
       console.error('Failed to save investigation item status', e);
       return [];
     }
+  },
+
+  clearVisits: () => {
+    localStorage.removeItem(STORAGE_KEY);
+  },
+
+  clearVitals: () => {
+    localStorage.removeItem(VITALS_KEY);
   }
 };
