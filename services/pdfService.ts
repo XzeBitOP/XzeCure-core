@@ -131,6 +131,11 @@ export const generateVisitPdf = async (
         <p style="font-size: 11pt; margin: 0; color: #fbbf24; font-weight: bold;">${visitData.investigationsAdvised}</p>
       </div>` : ''}
 
+      ${visitData.followup === 'Yes' ? `
+      <div style="margin-bottom: 20px; border: 1px dashed #3b82f6; border-radius: 12px; padding: 10px; text-align: center;">
+        <p style="margin: 0; font-size: 10pt; font-weight: 900; color: #3b82f6;">FOLLOW-UP APPOINTMENT: ${visitData.followupDate}</p>
+      </div>` : ''}
+
       <div style="margin-top: auto; padding: 25px; background: rgba(255,255,255,0.03); border-radius: 25px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div>
@@ -140,8 +145,7 @@ export const generateVisitPdf = async (
               <p style="font-size: 20pt; font-weight: 900; margin: 0; color: #10b981;">₹${visitData.serviceCharge}</p>
             </div>
          </div>
-         <!-- CLICKABLE BUTTON AREA -->
-         <div id="payment-btn" style="background: #10b981; color: #fff; padding: 18px; text-align: center; border-radius: 18px; font-weight: 900; font-size: 13pt; text-transform: uppercase; letter-spacing: 1px; cursor: pointer;">
+         <div id="payment-btn" style="background: #10b981; color: #fff; padding: 18px; text-align: center; border-radius: 18px; font-weight: 900; font-size: 13pt; text-transform: uppercase; letter-spacing: 1px;">
             TAP TO PAY ₹${visitData.serviceCharge} VIA UPI
          </div>
       </div>
@@ -165,10 +169,6 @@ export const generateVisitPdf = async (
     });
 
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-
-    // Precise Link Overlay for the Payment Button
-    // Container Padding (20mm) + Vertical Spacer + Content
-    // We position a link roughly over the bottom green button area
     pdf.link(25, 245, 160, 20, { url: upiLink });
 
     for (const photoUrl of photoDataUrls) {
