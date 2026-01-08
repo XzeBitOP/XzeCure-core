@@ -1,0 +1,89 @@
+
+import { SavedVisit, DailyVital } from '../types';
+
+const STORAGE_KEY = 'xzecure_visits';
+const VITALS_KEY = 'xzecure_daily_vitals';
+const INVESTIGATIONS_STATUS_KEY = 'xzecure_investigations_status_v2';
+
+export const storageService = {
+  getVisits: (): SavedVisit[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveVisit: (visit: Omit<SavedVisit, 'id'>) => {
+    const visits = storageService.getVisits();
+    const newVisit: SavedVisit = {
+      ...visit,
+      id: crypto.randomUUID(),
+    };
+    visits.unshift(newVisit); // Add new at the top
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits.slice(0, 50))); // Keep last 50
+    return newVisit;
+  },
+
+  getDailyVitals: (): DailyVital[] => {
+    try {
+      const data = localStorage.getItem(VITALS_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveDailyVital: (vital: Omit<DailyVital, 'id' | 'timestamp'>) => {
+    const vitals = storageService.getDailyVitals();
+    const newVital: DailyVital = {
+      ...vital,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    };
+    vitals.unshift(newVital);
+    localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30))); // Keep last 30 readings
+    return newVital;
+  },
+
+  getCompletedInvestigations: (visitId: string): string[] => {
+    try {
+      const data = localStorage.getItem(INVESTIGATIONS_STATUS_KEY);
+      const statusMap = data ? JSON.parse(data) : {};
+      return statusMap[visitId] || [];
+    } catch {
+      return [];
+    }
+  },
+
+  toggleInvestigationItem: (visitId: string, itemName: string) => {
+    try {
+      const data = localStorage.getItem(INVESTIGATIONS_STATUS_KEY);
+      const statusMap = data ? JSON.parse(data) : {};
+      const completed = statusMap[visitId] || [];
+      
+      const index = completed.indexOf(itemName);
+      if (index === -1) {
+        completed.push(itemName);
+      } else {
+        completed.splice(index, 1);
+      }
+      
+      statusMap[visitId] = completed;
+      localStorage.setItem(INVESTIGATIONS_STATUS_KEY, JSON.stringify(statusMap));
+      return completed;
+    } catch (e) {
+      console.error('Failed to save investigation item status', e);
+      return [];
+    }
+  },
+
+  clearVisits: () => {
+    localStorage.removeItem(STORAGE_KEY);
+  },
+
+  clearVitals: () => {
+    localStorage.removeItem(VITALS_KEY);
+  }
+};

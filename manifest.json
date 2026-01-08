@@ -1,0 +1,22 @@
+
+{
+  "name": "XzeCure Health Node",
+  "short_name": "XzeCure",
+  "description": "Secure Medical Hub & Digital Health Node",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

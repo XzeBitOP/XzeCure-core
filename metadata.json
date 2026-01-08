@@ -1,0 +1,8 @@
+{
+  "name": "XzeCure",
+  "description": "Secure patient visit form and medical report generator with local storage and PDF sharing.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
