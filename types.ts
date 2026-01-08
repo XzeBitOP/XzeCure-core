@@ -51,6 +51,7 @@ export interface VisitData {
   vitalRbs: string;
   signs: string;
   treatment: string;
+  nonMedicinalAdvice: string;
   medications: Medication[];
   investigationsAdvised: string;
   followup: 'Yes' | 'No';

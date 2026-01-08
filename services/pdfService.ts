@@ -48,7 +48,6 @@ export const generateVisitPdf = async (
   const now = new Date();
   const upiLink = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah`;
 
-  // Content Template
   container.innerHTML = `
     <div style="position: relative; z-index: 10; color: #fff; height: 100%; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -64,11 +63,11 @@ export const generateVisitPdf = async (
       
       <div style="margin: 30px 0; border-top: 5px solid #fff; padding-top: 20px;">
         <p style="margin: 0; font-size: 22pt; font-weight: 900;">${visitData.patientName}</p>
-        <p style="margin: 5px 0; font-size: 12pt; opacity: 0.8;">Age: ${visitData.age || 'N/A'} | Location: ${visitData.address || 'N/A'}</p>
-        <p style="margin: 0; font-size: 10pt; opacity: 0.6;">Contact: ${visitData.contactNumber} | Date: ${now.toLocaleDateString()}</p>
+        <p style="margin: 5px 0; font-size: 11pt; opacity: 0.8;">Age: ${visitData.age || 'N/A'} | Location: ${visitData.address || 'N/A'}</p>
+        <p style="margin: 0; font-size: 9pt; opacity: 0.6;">Contact: ${visitData.contactNumber} | Date: ${now.toLocaleDateString()}</p>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px;">
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px;">
         ${[
           {l: 'TEMP', v: visitData.vitalTemp, u: '°F', c: '#ef4444'},
           {l: 'BP', v: visitData.vitalBp, u: 'mmHg', c: '#3b82f6'},
@@ -80,82 +79,72 @@ export const generateVisitPdf = async (
           {l: 'BMI', v: visitData.bmi, u: 'Index', c: '#14b8a6'}
         ].map(vit => `
           <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">
-            <div style="font-size: 7pt; opacity: 0.6; font-weight: 900; text-transform: uppercase; color: ${vit.c};">${vit.l}</div>
-            <div style="font-size: 14pt; font-weight: 900; margin: 4px 0;">${vit.v || '--'}</div>
-            <div style="font-size: 6pt; opacity: 0.4; font-weight: bold;">${vit.u}</div>
+            <div style="font-size: 6pt; opacity: 0.6; font-weight: 900; text-transform: uppercase; color: ${vit.c};">${vit.l}</div>
+            <div style="font-size: 13pt; font-weight: 900; margin: 4px 0;">${vit.v || '--'}</div>
+            <div style="font-size: 5pt; opacity: 0.4;">${vit.u}</div>
           </div>
         `).join('')}
       </div>
 
-      <div style="margin-bottom: 30px;">
-        <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px;">History & Clinical Findings</h4>
-        <p style="font-size: 12pt; line-height: 1.6; white-space: pre-wrap;">${visitData.complaints}</p>
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 9pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 10px;">Clinical Findings</h4>
+        <p style="font-size: 11pt; line-height: 1.4; white-space: pre-wrap; margin: 0;">${visitData.complaints}</p>
       </div>
 
-      <div style="margin-bottom: 30px;">
-        <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px;">Prescribed Medications</h4>
-        <table style="width: 100%; border-collapse: collapse;">
+      ${visitData.history ? `
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 9pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 10px;">Medical & Surgical History</h4>
+        <p style="font-size: 11pt; line-height: 1.4; white-space: pre-wrap; margin: 0; opacity: 0.9;">${visitData.history}</p>
+      </div>` : ''}
+
+      <div style="margin-bottom: 25px;">
+        <h4 style="font-size: 9pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 10px;">Prescription</h4>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
           <thead>
-            <tr style="text-align: left; font-size: 9pt; opacity: 0.5;">
-              <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Medicine Name</th>
-              <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Dosage</th>
-              <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Timing / Frequency</th>
+            <tr style="text-align: left; font-size: 8pt; opacity: 0.5;">
+              <th style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">Medicine</th>
+              <th style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">Schedule</th>
             </tr>
           </thead>
           <tbody>
             ${visitData.medications.map(m => `
               <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11pt;">
-                <td style="padding: 15px 10px;"><b>${m.name}</b><br/><small style="opacity: 0.6;">${m.route}</small></td>
-                <td style="padding: 15px 10px;">${m.dose || '--'}</td>
-                <td style="padding: 15px 10px;">${m.timing} <span style="opacity: 0.5;">(${m.frequency}x/day)</span></td>
+                <td style="padding: 10px 8px;"><b>${m.name}</b><br/><small style="opacity: 0.6;">${m.route}</small></td>
+                <td style="padding: 10px 8px;">${m.timing} <span style="opacity: 0.5;">(${m.frequency}x)</span></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
 
-      ${visitData.treatment ? `
-      <div style="margin-bottom: 30px;">
-        <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px;">Other Advice / Treatment</h4>
-        <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 12px; border-left: 5px solid #3b82f6;">
-          <p style="font-size: 12pt; margin: 0; color: #fff; font-weight: 500; white-space: pre-wrap;">${visitData.treatment}</p>
+      ${visitData.nonMedicinalAdvice ? `
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 9pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 10px;">General Advices</h4>
+        <div style="background: rgba(16, 185, 129, 0.05); padding: 12px; border-radius: 12px; border-left: 4px solid #10b981;">
+          <p style="font-size: 11pt; margin: 0; color: #fff; font-weight: 500; white-space: pre-wrap;">${visitData.nonMedicinalAdvice}</p>
         </div>
       </div>` : ''}
 
       ${visitData.investigationsAdvised ? `
-      <div style="margin-bottom: 30px;">
-        <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px;">Investigations Advised</h4>
-        <div style="background: rgba(251, 191, 36, 0.1); padding: 15px; border-radius: 12px; border-left: 5px solid #fbbf24;">
-          <p style="font-size: 12pt; margin: 0; color: #fbbf24; font-weight: bold;">${visitData.investigationsAdvised}</p>
-        </div>
-      </div>` : ''}
-
-      ${visitData.followup === 'Yes' && visitData.followupDate ? `
-      <div style="margin-bottom: 30px;">
-        <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 8px; margin-bottom: 12px; letter-spacing: 1px;">Follow-up Schedule</h4>
-        <div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 12px; border-left: 5px solid #10b981;">
-          <p style="font-size: 12pt; margin: 0; color: #10b981; font-weight: bold;">Scheduled for: ${new Date(visitData.followupDate).toLocaleDateString()}</p>
-        </div>
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 9pt; text-transform: uppercase; font-weight: 900; opacity: 0.6; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 10px;">Labs & Investigations</h4>
+        <p style="font-size: 11pt; margin: 0; color: #fbbf24; font-weight: bold;">${visitData.investigationsAdvised}</p>
       </div>` : ''}
 
       <div style="margin-top: auto; padding: 25px; background: rgba(255,255,255,0.03); border-radius: 25px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
-         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div>
-              <h4 style="font-size: 9pt; text-transform: uppercase; opacity: 0.6; margin: 0; letter-spacing: 1px;">Consultation Service</h4>
-              <p style="font-size: 14pt; font-weight: 800; margin: 5px 0;">${visitData.serviceName}</p>
+              <h4 style="font-size: 8pt; opacity: 0.6; margin: 0; letter-spacing: 1px;">Service: <b>${visitData.serviceName}</b></h4>
             </div>
             <div style="text-align: right;">
-              <h4 style="font-size: 9pt; text-transform: uppercase; opacity: 0.6; margin: 0; letter-spacing: 1px;">Total Charge</h4>
-              <p style="font-size: 24pt; font-weight: 900; margin: 5px 0; color: #10b981;">₹${visitData.serviceCharge}</p>
+              <p style="font-size: 20pt; font-weight: 900; margin: 0; color: #10b981;">₹${visitData.serviceCharge}</p>
             </div>
          </div>
-         <div style="background: #10b981; color: #fff; padding: 20px; text-align: center; border-radius: 18px; font-weight: 900; font-size: 14pt; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
-            Click to Pay ₹${visitData.serviceCharge} via UPI
+         <!-- CLICKABLE BUTTON AREA -->
+         <div id="payment-btn" style="background: #10b981; color: #fff; padding: 18px; text-align: center; border-radius: 18px; font-weight: 900; font-size: 13pt; text-transform: uppercase; letter-spacing: 1px; cursor: pointer;">
+            TAP TO PAY ₹${visitData.serviceCharge} VIA UPI
          </div>
       </div>
-    </div>
-    <div style="position: absolute; bottom: 10mm; left: 0; width: 100%; text-align: center; opacity: 0.4; font-size: 9pt; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">
-      © XzeCure Digital Health Node • Not for Medico-Legal Use
     </div>
   `;
 
@@ -170,16 +159,17 @@ export const generateVisitPdf = async (
     const clinicalBase64 = btoa(unescape(encodeURIComponent(clinicalJson)));
     
     pdf.setProperties({
-      title: `XzeCure_Report_${visitData.patientName}`,
+      title: `XzeCure_${visitData.patientName}`,
       subject: clinicalBase64,
-      author: 'XzeCure Health Node'
+      author: 'XzeCure Health'
     });
 
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
-    // Clickable Payment Link Overlay
-    // Based on the position of the green button at the bottom
-    pdf.link(20, 230, 170, 25, { url: upiLink });
+    // Precise Link Overlay for the Payment Button
+    // Container Padding (20mm) + Vertical Spacer + Content
+    // We position a link roughly over the bottom green button area
+    pdf.link(25, 245, 160, 20, { url: upiLink });
 
     for (const photoUrl of photoDataUrls) {
       pdf.addPage();
