@@ -36,7 +36,7 @@ const App: React.FC = () => {
     bp: '', spo2: '', hr: '', rbs: '', weight: ''
   });
 
-  // Doctor Form State (Pruned dead fields)
+  // Doctor Form State
   const initialFormState: VisitData = {
     visitId: '', staffName: '', patientName: '', age: '', contactNumber: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
@@ -52,13 +52,11 @@ const App: React.FC = () => {
   const [letterhead] = useState<string>(DEFAULT_LETTERHEAD);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
-  const [savedVisits, setSavedVisits] = useState<SavedVisit[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
-    setSavedVisits(storageService.getVisits());
     setDailyVitals(storageService.getDailyVitals());
     
     if ('Notification' in window) {
@@ -232,7 +230,6 @@ const App: React.FC = () => {
       const blob = await generateVisitPdf(finalData, finalData.photos, letterhead);
       setPdfBlob(blob);
       storageService.saveVisit({ visitId: vId, name: finalData.patientName, date: new Date().toISOString(), staff: finalData.staffName, fullData: finalData });
-      setSavedVisits(storageService.getVisits());
       showToast('Report Generated!', 'success');
     } catch (err) {
       showToast('PDF Engine Error', 'error');
@@ -261,7 +258,9 @@ const App: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen bg-slate-900 px-4">
         <div className="w-full max-md:max-w-md bg-slate-800 rounded-[3rem] p-12 border border-slate-700 shadow-2xl space-y-10">
           <div className="flex flex-col items-center space-y-6">
-            <div className="p-6 bg-white rounded-[2rem] shadow-xl"><img src={DEFAULT_LOGO} className="w-24 h-24 object-contain" /></div>
+            <div className="p-6 bg-slate-900/40 rounded-[2.5rem] shadow-xl border border-slate-700/50 backdrop-blur-md">
+              <img src={DEFAULT_LOGO} alt="XzeCure Logo" className="w-24 h-24 object-contain" />
+            </div>
             <h1 className="text-4xl font-black text-white">XzeCure</h1>
             <p className="text-slate-400 font-bold text-center text-lg">Secure Personal Medical Hub</p>
           </div>
@@ -415,8 +414,10 @@ const App: React.FC = () => {
       )}
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <div className="bg-white p-3 rounded-2xl shadow-xl"><img src={DEFAULT_LOGO} className="w-12 h-12 object-contain" /></div>
-          <div><h1 className="text-3xl font-black tracking-tighter">XzeCure Node</h1><p className="text-slate-500 text-[8px] font-black uppercase tracking-widest opacity-60">Practitioner Terminal</p></div>
+          <div className="bg-slate-900/40 p-3 rounded-2xl shadow-xl border border-slate-700/50 backdrop-blur-md">
+            <img src={DEFAULT_LOGO} alt="XzeCure Logo" className="w-12 h-12 object-contain" />
+          </div>
+          <div><h1 className="text-3xl font-black tracking-tighter text-white">XzeCure Node</h1><p className="text-slate-500 text-[8px] font-black uppercase tracking-widest opacity-60">Practitioner Terminal</p></div>
         </div>
         <div className="flex gap-4">
           <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-4 bg-slate-800 rounded-2xl border border-slate-700 text-rose-500"><ArrowLeft className="w-6 h-6" /></button>

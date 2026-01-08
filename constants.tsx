@@ -55,6 +55,6 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
   }
 ];
 
-// URLs updated based on the visual assets for XzeCure
-export const DEFAULT_LOGO = "https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR";
-export const DEFAULT_LETTERHEAD = "https://drive.google.com/uc?export=view&id=1PVkL2iQhLYDTPXX0Od5M3Va0GMauwpN8";
+// Reliable direct download IDs for Google Drive files
+export const DEFAULT_LOGO = "https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR";
+export const DEFAULT_LETTERHEAD = "https://lh3.googleusercontent.com/d/1PVkL2iQhLYDTPXX0Od5M3Va0GMauwpN8";
