@@ -29,6 +29,16 @@ export interface DailyVital {
   weight: string;
 }
 
+export interface Appointment {
+  id: string;
+  patientName: string;
+  contactNumber: string;
+  date: string;
+  time: string;
+  symptoms: string;
+  status: 'pending' | 'checked-in' | 'cancelled';
+}
+
 export interface VisitData {
   visitId: string;
   staffName: string;

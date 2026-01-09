@@ -1,9 +1,11 @@
 
-import { SavedVisit, DailyVital } from '../types';
+import { SavedVisit, DailyVital, Appointment, VisitData } from '../types';
 
 const STORAGE_KEY = 'xzecure_visits';
 const VITALS_KEY = 'xzecure_daily_vitals';
+const APPOINTMENTS_KEY = 'xzecure_appointments';
 const INVESTIGATIONS_STATUS_KEY = 'xzecure_investigations_status_v2';
+const DRAFT_KEY = 'xzecure_form_draft';
 
 export const storageService = {
   getVisits: (): SavedVisit[] => {
@@ -21,8 +23,9 @@ export const storageService = {
       ...visit,
       id: crypto.randomUUID(),
     };
-    visits.unshift(newVisit); // Add new at the top
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits.slice(0, 50))); // Keep last 50
+    visits.unshift(newVisit); 
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits.slice(0, 50)));
+    localStorage.removeItem(DRAFT_KEY); // Clear draft on successful save
     return newVisit;
   },
 
@@ -43,8 +46,49 @@ export const storageService = {
       timestamp: new Date().toISOString(),
     };
     vitals.unshift(newVital);
-    localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30))); // Keep last 30 readings
+    localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30)));
     return newVital;
+  },
+
+  getAppointments: (): Appointment[] => {
+    try {
+      const data = localStorage.getItem(APPOINTMENTS_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveAppointment: (appointment: Omit<Appointment, 'id' | 'status'>) => {
+    const appointments = storageService.getAppointments();
+    const newAppointment: Appointment = {
+      ...appointment,
+      id: crypto.randomUUID(),
+      status: 'pending'
+    };
+    appointments.unshift(newAppointment);
+    localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
+    return newAppointment;
+  },
+
+  updateAppointmentStatus: (id: string, status: Appointment['status']) => {
+    const appointments = storageService.getAppointments();
+    const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
+    localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
+    return updated;
+  },
+
+  saveFormDraft: (data: VisitData) => {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+  },
+
+  getFormDraft: (): VisitData | null => {
+    try {
+      const data = localStorage.getItem(DRAFT_KEY);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
   },
 
   getCompletedInvestigations: (visitId: string): string[] => {
@@ -77,13 +121,5 @@ export const storageService = {
       console.error('Failed to save investigation item status', e);
       return [];
     }
-  },
-
-  clearVisits: () => {
-    localStorage.removeItem(STORAGE_KEY);
-  },
-
-  clearVitals: () => {
-    localStorage.removeItem(VITALS_KEY);
   }
 };
