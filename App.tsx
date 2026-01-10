@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   User, Users, Stethoscope, CheckCircle2, XCircle, Loader2, 
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash
 } from 'lucide-react';
-import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD } from './constants';
+import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
 import { VisitData, Medication, DailyVital, Appointment } from './types';
 import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
@@ -41,6 +41,7 @@ const App: React.FC = () => {
     visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
     history: '', surgicalHistory: '', investigationsAdvised: '',
+    provisionalDiagnosis: '', icdCode: '',
     vitals: '', vitalTemp: '', vitalBp: '', vitalSpo2: '',
     vitalHr: '', vitalRbs: '', signs: '', treatment: '', nonMedicinalAdvice: '', medications: [],
     followup: 'No', followupDate: '', whatsappNumber: '',
@@ -49,13 +50,11 @@ const App: React.FC = () => {
   };
 
   const [formData, setFormData] = useState<VisitData>(initialFormState);
-  const [heightUnit, setHeightUnit] = useState<'cm' | 'ftIn'>('cm');
-  const [heightFt, setHeightFt] = useState('');
-  const [heightIn, setHeightIn] = useState('');
-
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
+  const icdRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
@@ -65,7 +64,17 @@ const App: React.FC = () => {
     const draft = storageService.getFormDraft();
     if (draft) setFormData(draft);
 
-    return () => clearTimeout(timer);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (icdRef.current && !icdRef.current.contains(event.target as Node)) {
+        setIcdSuggestions([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -214,6 +223,19 @@ const App: React.FC = () => {
       serviceCharge: value,
       serviceName: label || prev.serviceName
     }));
+  };
+
+  const handleIcdSearch = (query: string) => {
+    setFormData(prev => ({ ...prev, provisionalDiagnosis: query }));
+    if (query.length < 2) {
+      setIcdSuggestions([]);
+      return;
+    }
+    const filtered = COMMON_ICD_CODES.filter(item => 
+      item.code.toLowerCase().includes(query.toLowerCase()) || 
+      item.description.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 5);
+    setIcdSuggestions(filtered);
   };
 
   const toggleMed = (id: string) => {
@@ -381,7 +403,7 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="md:col-span-3 space-y-3">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Current Complaints / Signs</label>
-                    <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} placeholder="Describe symptoms and signs observed..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 resize-none placeholder:opacity-20" />
+                    <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} placeholder="Describe symptoms and signs observed..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 resize-none placeholder:opacity-20 shadow-inner" />
                   </div>
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Duration</label>
@@ -402,6 +424,48 @@ const App: React.FC = () => {
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-4">Blood / Radiology Investigations</label>
                   <textarea value={formData.investigationsAdvised} onChange={e => setFormData({...formData, investigationsAdvised: e.target.value})} placeholder="List required tests (CBC, USG, X-Ray)..." rows={2} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-amber-500 resize-none placeholder:opacity-20" />
+                </div>
+
+                {/* Provisional Diagnosis with Matching ICD Codes */}
+                <div className="space-y-3 relative" ref={icdRef}>
+                  <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Provisional Diagnosis (ICD Search)</label>
+                  <div className="relative">
+                    <textarea 
+                      value={formData.provisionalDiagnosis} 
+                      onChange={e => handleIcdSearch(e.target.value)} 
+                      placeholder="Type diagnosis to match ICD-10 codes..." 
+                      rows={2} 
+                      className="w-full bg-[#161e31] border border-white/5 p-8 pr-16 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 resize-none placeholder:opacity-20" 
+                    />
+                    <div className="absolute right-6 top-6 flex flex-col gap-2">
+                       <div className="p-3 bg-blue-600/10 text-blue-500 rounded-full"><Search size={20} /></div>
+                       {formData.icdCode && <div className="p-3 bg-emerald-600/10 text-emerald-500 rounded-full flex items-center gap-2 font-black text-xs px-4"><Hash size={14} /> {formData.icdCode}</div>}
+                    </div>
+                  </div>
+                  
+                  {icdSuggestions.length > 0 && (
+                    <div className="absolute z-10 top-full left-0 right-0 mt-2 bg-[#161e31] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                      <div className="p-4 bg-blue-600/5 border-b border-white/5 text-[8px] font-black uppercase tracking-widest text-blue-400 px-8">Matching ICD-10 Codes</div>
+                      {icdSuggestions.map((item, idx) => (
+                        <button 
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, provisionalDiagnosis: item.description, icdCode: item.code }));
+                            setIcdSuggestions([]);
+                            showToast(`Linked: ${item.code}`, 'success');
+                          }}
+                          className="w-full text-left p-6 px-8 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group"
+                        >
+                          <div>
+                            <p className="text-white font-black">{item.description}</p>
+                            <p className="text-[10px] text-slate-500 font-bold group-hover:text-blue-400 transition-colors uppercase">ICD: {item.code}</p>
+                          </div>
+                          <ChevronRight size={16} className="text-slate-700 group-hover:text-white transition-all" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -450,13 +514,16 @@ const App: React.FC = () => {
               {/* Service Fee */}
               <div className="pt-12 border-t border-white/5">
                 <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4 mb-4 block">Fee Selection</label>
-                <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg">
-                    <option value="">-- Choose Category --</option>
-                    {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
-                </select>
+                <div className="relative">
+                  <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg">
+                      <option value="">-- Choose Category --</option>
+                      {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
+                  </select>
+                  <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90" />
+                </div>
               </div>
 
-              <button type="submit" disabled={isGenerating} className="w-full bg-white text-slate-950 py-10 rounded-full font-black text-3xl flex items-center justify-center gap-6 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.1)] disabled:opacity-50 mt-10">
+              <button type="submit" disabled={isGenerating} className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.1)] disabled:opacity-50 mt-10 transition-all hover:bg-slate-100">
                 {isGenerating ? <><Loader2 className="animate-spin" /> DEPLOYING...</> : <><FileText size={40} /> DEPLOY CLINICAL HUB</>}
               </button>
             </div>

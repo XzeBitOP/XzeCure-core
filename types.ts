@@ -1,4 +1,3 @@
-
 export interface ServiceOption {
   label: string;
   value: number;
@@ -65,6 +64,8 @@ export interface VisitData {
   nonMedicinalAdvice: string;
   medications: Medication[];
   investigationsAdvised: string;
+  provisionalDiagnosis: string;
+  icdCode: string;
   followup: 'Yes' | 'No';
   followupDate: string;
   whatsappNumber: string;

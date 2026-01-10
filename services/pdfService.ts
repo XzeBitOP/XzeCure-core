@@ -134,6 +134,15 @@ export const generateVisitPdf = async (
             <div style="font-size: 11pt; line-height: 1.6; white-space: pre-wrap; color: #334155;">${visitData.complaints || 'Routine clinical assessment.'}</div>
           </section>
 
+          ${visitData.provisionalDiagnosis ? `
+          <section style="margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0;">Provisional Diagnosis</h4>
+              ${visitData.icdCode ? `<span style="font-size: 8pt; font-weight: 900; color: #3b82f6; background: #eff6ff; padding: 2px 8px; border-radius: 4px;">ICD-10: ${visitData.icdCode}</span>` : ''}
+            </div>
+            <div style="font-size: 11pt; font-weight: 800; color: #1e293b;">${visitData.provisionalDiagnosis}</div>
+          </section>` : ''}
+
           ${visitData.history ? `
           <section style="margin-bottom: 25px;">
             <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 10px;">Past History</h4>
@@ -211,6 +220,7 @@ export const generateVisitPdf = async (
     const imgData = canvas.toDataURL('image/jpeg', 0.9);
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     
+    // Include the entire visitData in Subject metadata as requested
     pdf.setProperties({
       title: `XzeCure_${visitData.patientName}`,
       subject: btoa(unescape(encodeURIComponent(JSON.stringify(visitData)))),

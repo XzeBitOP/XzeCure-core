@@ -1,4 +1,3 @@
-
 import { ServiceGroup } from './types';
 
 export const SECRET_PIN = '472892';
@@ -55,6 +54,28 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
   }
 ];
 
-// Reliable direct download IDs for Google Drive files
+// Curated Common ICD-10 Codes
+export const COMMON_ICD_CODES = [
+  { code: 'A09.9', description: 'Gastroenteritis and colitis of infectious origin' },
+  { code: 'B34.9', description: 'Viral infection, unspecified' },
+  { code: 'E11.9', description: 'Type 2 diabetes mellitus without complications' },
+  { code: 'I10', description: 'Essential (primary) hypertension' },
+  { code: 'J00', description: 'Acute nasopharyngitis [common cold]' },
+  { code: 'J02.9', description: 'Acute pharyngitis, unspecified' },
+  { code: 'J06.9', description: 'Acute upper respiratory infection, unspecified' },
+  { code: 'J18.9', description: 'Pneumonia, unspecified organism' },
+  { code: 'J20.9', description: 'Acute bronchitis, unspecified' },
+  { code: 'J44.9', description: 'Chronic obstructive pulmonary disease, unspecified' },
+  { code: 'J45.909', description: 'Unspecified asthma, uncomplicated' },
+  { code: 'K21.9', description: 'Gastro-esophageal reflux disease without esophagitis' },
+  { code: 'M54.5', description: 'Low back pain' },
+  { code: 'N39.0', description: 'Urinary tract infection, site not specified' },
+  { code: 'R05', description: 'Cough' },
+  { code: 'R10.9', description: 'Unspecified abdominal pain' },
+  { code: 'R50.9', description: 'Fever, unspecified' },
+  { code: 'R51', description: 'Headache' },
+  { code: 'Z00.00', description: 'Encounter for general adult medical examination without abnormal findings' }
+];
+
 export const DEFAULT_LOGO = "https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR";
 export const DEFAULT_LETTERHEAD = "https://lh3.googleusercontent.com/d/1PVkL2iQhLYDTPXX0Od5M3Va0GMauwpN8";
