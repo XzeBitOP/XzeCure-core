@@ -44,6 +44,7 @@ export interface VisitData {
   staffName: string;
   patientName: string;
   age: string;
+  gender: string;
   contactNumber: string;
   address: string;
   weight: string;
