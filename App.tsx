@@ -573,6 +573,17 @@ const App: React.FC = () => {
                   <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Import Health Node</h3><p className="text-slate-500 font-medium text-xl">Upload report to sync your hub.</p></div>
                   <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-[0_0_40px_rgba(37,99,235,0.4)]">CHOOSE PDF REPORT<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
                </div>
+               {/* Obesity Clinic CTA Button */}
+               <div className="px-4">
+                  <a 
+                    href="https://obe-cure.vercel.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full bg-white text-slate-950 py-8 rounded-full font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_35px_rgba(249,115,22,0.65)] hover:shadow-[0_0_55px_rgba(249,115,22,0.9)] transition-all active:scale-95 text-center border-2 border-orange-100 uppercase tracking-tight"
+                  >
+                    your obesity with us
+                  </a>
+               </div>
             </div>
           ) : (
             <div className="space-y-8 animate-in fade-in duration-700">
@@ -614,6 +625,18 @@ const App: React.FC = () => {
                      </div>
                    ))}
                  </div>
+               </div>
+
+               {/* Obesity Clinic CTA Button (Always visible for patients) */}
+               <div className="px-4">
+                  <a 
+                    href="https://obe-cure.vercel.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full bg-white text-slate-950 py-8 rounded-full font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_35px_rgba(249,115,22,0.65)] hover:shadow-[0_0_55px_rgba(249,115,22,0.9)] transition-all active:scale-95 text-center border-2 border-orange-100 uppercase tracking-tight"
+                  >
+                    your obesity with us
+                  </a>
                </div>
             </div>
           )}
