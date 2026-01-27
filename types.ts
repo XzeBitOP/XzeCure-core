@@ -30,10 +30,12 @@ export interface DailyVital {
   id: string;
   timestamp: string;
   bp: string;
+  temp: string;
   spo2: string;
   hr: string;
   rbs: string;
   weight: string;
+  waist: string;
 }
 
 export interface Appointment {

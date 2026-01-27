@@ -1,4 +1,3 @@
-
 import { SavedVisit, DailyVital, Appointment, VisitData } from '../types';
 
 const STORAGE_KEY = 'xzecure_visits';
@@ -43,11 +42,25 @@ export const storageService = {
     const newVital: DailyVital = {
       ...vital,
       id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toLocaleString('en-IN'),
     };
     vitals.unshift(newVital);
     localStorage.setItem(VITALS_KEY, JSON.stringify(vitals.slice(0, 30)));
     return newVital;
+  },
+
+  updateDailyVital: (id: string, updatedVital: Partial<DailyVital>) => {
+    const vitals = storageService.getDailyVitals();
+    const updated = vitals.map(v => v.id === id ? { ...v, ...updatedVital } : v);
+    localStorage.setItem(VITALS_KEY, JSON.stringify(updated));
+    return updated;
+  },
+
+  deleteDailyVital: (id: string) => {
+    const vitals = storageService.getDailyVitals();
+    const updated = vitals.filter(v => v.id !== id);
+    localStorage.setItem(VITALS_KEY, JSON.stringify(updated));
+    return updated;
   },
 
   getAppointments: (): Appointment[] => {
