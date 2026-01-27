@@ -81,7 +81,7 @@ export const generateVisitPdf = async (
           </div>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 14pt; font-weight: 700; color: #1e3a8a;">Dr. ${visitData.staffName}</p>
+          <p style="margin: 0; font-size: 14pt; font-weight: 700; color: #1e3a8a;">${visitData.staffName}</p>
           <p style="margin: 2px 0; font-size: 8pt; color: #64748b; font-weight: 600;">Visit ID: ${visitData.visitId}</p>
           <p style="margin: 0; font-size: 8pt; color: #64748b;">${now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
         </div>
@@ -143,10 +143,30 @@ export const generateVisitPdf = async (
             <div style="font-size: 11pt; font-weight: 800; color: #1e293b;">${visitData.provisionalDiagnosis}</div>
           </section>` : ''}
 
-          ${visitData.history ? `
+          <!-- Medicine Advice (Rx Detailed Instructions) -->
+          ${visitData.medicineAdvice && visitData.medicineAdvice.length > 0 ? `
           <section style="margin-bottom: 25px;">
-            <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 10px;">Past History</h4>
-            <div style="font-size: 10pt; line-height: 1.5; white-space: pre-wrap; color: #475569;">${visitData.history}</div>
+            <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 10px;">Medicine Advice</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr style="background: #eff6ff; border-bottom: 2px solid #3b82f6;">
+                  <th style="padding: 8px; text-align: left; font-size: 8pt; color: #1e3a8a;">Medicine</th>
+                  <th style="padding: 8px; text-align: center; font-size: 8pt; color: #1e3a8a;">Time</th>
+                  <th style="padding: 8px; text-align: center; font-size: 8pt; color: #1e3a8a;">Duration</th>
+                  <th style="padding: 8px; text-align: right; font-size: 8pt; color: #1e3a8a;">Days</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${visitData.medicineAdvice.map(advice => `
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 10px 8px; font-size: 10pt; font-weight: 800; color: #0f172a;">${advice.medicineName}</td>
+                    <td style="padding: 10px 8px; text-align: center; font-size: 9pt; color: #475569;">${advice.time}</td>
+                    <td style="padding: 10px 8px; text-align: center; font-size: 9pt; color: #475569;">${advice.duration}</td>
+                    <td style="padding: 10px 8px; text-align: right; font-size: 9pt; font-weight: 700; color: #1e3a8a;">${advice.days}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
           </section>` : ''}
 
           <section>
@@ -221,6 +241,7 @@ export const generateVisitPdf = async (
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     
     // Include the entire visitData in Subject metadata as requested
+    // This allows the patient portal to read structured data like medicineAdvice
     pdf.setProperties({
       title: `XzeCure_${visitData.patientName}`,
       subject: btoa(unescape(encodeURIComponent(JSON.stringify(visitData)))),

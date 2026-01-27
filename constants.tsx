@@ -1,6 +1,7 @@
 import { ServiceGroup } from './types';
 
 export const SECRET_PIN = '472892';
+export const NURSE_PIN = '123098';
 
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {

@@ -18,6 +18,14 @@ export interface Medication {
   takenToday?: boolean;
 }
 
+export interface MedicineAdviceItem {
+  id: string;
+  medicineName: string;
+  time: string;
+  duration: string;
+  days: string;
+}
+
 export interface DailyVital {
   id: string;
   timestamp: string;
@@ -63,6 +71,7 @@ export interface VisitData {
   treatment: string;
   nonMedicinalAdvice: string;
   medications: Medication[];
+  medicineAdvice: MedicineAdviceItem[];
   investigationsAdvised: string;
   provisionalDiagnosis: string;
   icdCode: string;
