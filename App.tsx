@@ -4,7 +4,7 @@ import {
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Camera
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save
 } from 'lucide-react';
 import { SECRET_PIN, NURSE_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem } from './types';
@@ -62,19 +62,6 @@ const App: React.FC = () => {
   const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
   const icdRef = useRef<HTMLDivElement>(null);
 
-  // Managed URL for PDF to avoid recreation on every render and memory leaks
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (pdfBlob) {
-      const url = URL.createObjectURL(pdfBlob);
-      setPdfUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setPdfUrl(null);
-    }
-  }, [pdfBlob]);
-
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
     const draft = storageService.getFormDraft();
@@ -117,7 +104,7 @@ const App: React.FC = () => {
   }, []);
 
   const parsePdfMetadata = async (file: File) => {
-    const arrayBuffer = (await file.arrayBuffer()) as ArrayBuffer;
+    const arrayBuffer = await file.arrayBuffer();
     const loadingTask = getDocument({ data: new Uint8Array(arrayBuffer) });
     const pdf = await (loadingTask as any).promise;
     const metadataResult = await (pdf as any).getMetadata();
@@ -135,62 +122,31 @@ const App: React.FC = () => {
     try {
       const visitData = await parsePdfMetadata(file);
       if (selectedRole === 'nurse') {
-        setFormData(prev => ({
-          ...prev,
-          patientName: visitData.patientName,
-          age: visitData.age,
-          gender: visitData.gender,
-          medications: visitData.medications,
-          medicineAdvice: visitData.medicineAdvice,
-          provisionalDiagnosis: visitData.provisionalDiagnosis,
-          icdCode: visitData.icdCode,
-          contactNumber: visitData.contactNumber,
-          investigationsAdvised: visitData.investigationsAdvised
-        }));
-        showToast('Clinical Context Linked', 'success');
+        setFormData({ ...visitData, serviceCharge: 0, serviceName: 'Nursing Service' });
+        showToast('Clinical Metadata Loaded', 'success');
+      } else if (selectedRole === 'doctor') {
+        // Restore for follow-up
+        setFormData({
+          ...visitData,
+          visitId: '', // Generate new ID on save
+          serviceCharge: 999, // Reset to standard visit fee
+          staffName: formData.staffName || visitData.staffName // Prefer current user name
+        });
+        showToast('Patient History Restored for Follow-up', 'success');
       } else {
         setCurrentPatientRecord(visitData);
-        showToast('XzeCure Synced', 'success');
+        showToast('XzeCure Hub Synced', 'success');
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Sync Failed', 'error');
+      showToast(err instanceof Error ? err.message : 'Import Failed', 'error');
     } finally {
       setIsImporting(false);
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    // Fix: Explicitly cast 'file' to 'any' or 'Blob' to prevent TS "unknown" errors in handleImageUpload
-    const readers = Array.from(files).map((file: any) => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(readers).then(results => {
-      setFormData(prev => ({
-        ...prev,
-        photos: [...prev.photos, ...results]
-      }));
-      showToast(`${results.length} images attached`, 'info');
-    });
-  };
-
-  const removePhoto = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      photos: prev.photos.filter((_, i) => i !== index)
-    }));
-  };
-
   const handlePartnerLabConnect = () => {
     if (!currentPatientRecord) return;
-    showToast('Requesting Lab Service...', 'info');
+    showToast('Connecting Lab...', 'info');
     const baseMsg = `Hello, this is an automated request from XzeCure. Patient ${currentPatientRecord.patientName} requires a home visit for: ${currentPatientRecord.investigationsAdvised}. Contact: ${currentPatientRecord.contactNumber}`;
     const message = encodeURIComponent(baseMsg);
     window.open(`https://wa.me/919081736424?text=${message}`, "_blank");
@@ -198,7 +154,7 @@ const App: React.FC = () => {
 
   const handleMedicineOrder = () => {
     if (!currentPatientRecord) return;
-    showToast('Preparing Pharmacy Link...', 'info');
+    showToast('Pharmacy Link...', 'info');
     let medsList = '';
     if (currentPatientRecord.medicineAdvice && currentPatientRecord.medicineAdvice.length > 0) {
       medsList = currentPatientRecord.medicineAdvice.map(m => `${m.medicineName} (for ${m.days || 'prescribed duration'})`).join(', ');
@@ -220,14 +176,15 @@ const App: React.FC = () => {
       const updated = storageService.updateDailyVital(editingVitalId, vitalsFormData);
       setVitalsHistory(updated);
       setEditingVitalId(null);
-      showToast('Vitals Updated', 'success');
+      showToast('Log Updated', 'success');
     } else {
-      const saved = storageService.saveDailyVital(vitalsFormData);
+      storageService.saveDailyVital(vitalsFormData);
       setVitalsHistory(storageService.getDailyVitals());
-      showToast('Vitals Saved Locally', 'success');
+      showToast('Vitals Saved', 'success');
 
+      // WhatsApp Auto-Share
       const stamp = new Date().toLocaleString('en-IN');
-      const vitalsSummary = `BP:${vitalsFormData.bp || '--'}, Temp:${vitalsFormData.temp || '--'}°F, SpO2:${vitalsFormData.spo2 || '--'}%, HR:${vitalsFormData.hr || '--'}bpm, RBS:${vitalsFormData.rbs || '--'}mg/dL, Weight:${vitalsFormData.weight || '--'}kg, Waist:${vitalsFormData.waist || '--'}in`;
+      const vitalsSummary = `BP:${vitalsFormData.bp || '--'}, Temp:${vitalsFormData.temp || '--'}°F, SpO2:${vitalsFormData.spo2 || '--'}%, HR:${vitalsFormData.hr || '--'}bpm, RBS:${vitalsFormData.rbs || '--'}mg/dL, Weight:${vitalsFormData.weight || '--'}kg`;
       const msg = `Hi, I'm ${currentPatientRecord.patientName} under your treatment for ${currentPatientRecord.provisionalDiagnosis}. My vitals are ${vitalsSummary} (${stamp}).`;
       window.open(`https://wa.me/918200095781?text=${encodeURIComponent(msg)}`, "_blank");
     }
@@ -236,7 +193,45 @@ const App: React.FC = () => {
     setShowVitalsForm(false);
   };
 
+  const handlePinInput = (value: string) => {
+    setPin(value);
+    if (value.length === 6) {
+      if (selectedRole === 'doctor' && value === SECRET_PIN) {
+        setIsLocked(false);
+        setPin('');
+      } else if (selectedRole === 'nurse' && value === NURSE_PIN) {
+        setIsLocked(false);
+        setPin('');
+      } else {
+        showToast('Invalid PIN Access Denied', 'error');
+        setPin('');
+      }
+    }
+  };
+
+  const handleIcdSearch = (query: string) => {
+    setFormData(prev => ({ ...prev, provisionalDiagnosis: query }));
+    if (query.length > 1) {
+      const filtered = COMMON_ICD_CODES.filter(item => 
+        item.description.toLowerCase().includes(query.toLowerCase()) || 
+        item.code.toLowerCase().includes(query.toLowerCase())
+      );
+      setIcdSuggestions(filtered);
+    } else {
+      setIcdSuggestions([]);
+    }
+  };
+
+  const toggleAdvice = (id: string) => {
+    setAdviceStatus(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleMed = (id: string) => {
+    setMedsStatus(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const handleEditVital = (vital: DailyVital) => {
+    setEditingVitalId(vital.id);
     setVitalsFormData({
       bp: vital.bp,
       temp: vital.temp,
@@ -246,8 +241,24 @@ const App: React.FC = () => {
       weight: vital.weight,
       waist: vital.waist
     });
-    setEditingVitalId(vital.id);
     setShowVitalsForm(true);
+    setShowVitalsHistory(false);
+  };
+
+  const addMedication = () => {
+    const newMed: Medication = { id: crypto.randomUUID(), name: '', dose: '', timing: '', route: 'Oral', frequency: 1 };
+    setFormData({ ...formData, medications: [...formData.medications, newMed] });
+  };
+
+  const removeMedication = (id: string) => {
+    setFormData({ ...formData, medications: formData.medications.filter(m => m.id !== id) });
+  };
+
+  const updateMedication = (id: string, field: keyof Medication, value: any) => {
+    setFormData({
+      ...formData,
+      medications: formData.medications.map(m => m.id === id ? { ...m, [field]: value } : m)
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -262,12 +273,13 @@ const App: React.FC = () => {
         finalComplaints = [servicesText, otherText, formData.complaints].filter(Boolean).join('\n\n');
       }
       const finalData = { ...formData, visitId: vId, complaints: finalComplaints };
+      
       const blob = await generateVisitPdf(finalData, finalData.photos, DEFAULT_LOGO);
       setPdfBlob(blob);
       storageService.saveVisit({ visitId: vId, name: finalData.patientName, date: new Date().toISOString(), staff: finalData.staffName, fullData: finalData });
-      showToast('Report Compiled', 'success');
+      showToast('Report Captured', 'success');
     } catch (err) {
-      showToast('Engine Error', 'error');
+      showToast('PDF Engine Error', 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -276,8 +288,7 @@ const App: React.FC = () => {
   const handleEmergencyAction = (type: 'ambulance' | 'doctor') => {
     const actionText = type === 'ambulance' ? '🚨 SOS: EMERGENCY AMBULANCE REQUIRED' : '🩺 SOS: URGENT DOCTOR REQUIRED';
     setShowEmergencyDialog(false);
-    const message = encodeURIComponent(actionText);
-    window.open(`https://wa.me/918200095781?text=${message}`, "_blank");
+    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(actionText)}`, "_blank");
   };
 
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -289,39 +300,6 @@ const App: React.FC = () => {
       if (opt) label = opt.label;
     });
     setFormData(prev => ({ ...prev, serviceCharge: value, serviceName: label || prev.serviceName }));
-  };
-
-  const toggleServiceCheck = (serviceLabel: string) => {
-    setCheckedServices(prev => 
-      prev.includes(serviceLabel) ? prev.filter(s => s !== serviceLabel) : [...prev, serviceLabel]
-    );
-  };
-
-  const handleIcdSearch = (query: string) => {
-    setFormData(prev => ({ ...prev, provisionalDiagnosis: query }));
-    if (query.length < 2) {
-      setIcdSuggestions([]);
-      return;
-    }
-    const filtered = COMMON_ICD_CODES.filter(item => 
-      item.code.toLowerCase().includes(query.toLowerCase()) || 
-      item.description.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 5);
-    setIcdSuggestions(filtered);
-  };
-
-  const toggleMed = (id: string) => setMedsStatus(prev => ({ ...prev, [id]: !prev[id] }));
-  const toggleAdvice = (id: string) => setAdviceStatus(prev => ({ ...prev, [id]: !prev[id] }));
-
-  const handlePinInput = (val: string) => {
-    setPin(val);
-    if (selectedRole === 'doctor' && val === SECRET_PIN) {
-      setIsLocked(false);
-      setPin('');
-    } else if (selectedRole === 'nurse' && val === NURSE_PIN) {
-      setIsLocked(false);
-      setPin('');
-    }
   };
 
   if (isBooting) {
@@ -381,7 +359,7 @@ const App: React.FC = () => {
             <button onClick={() => setShowEmergencyDialog(true)} className="group w-full p-8 bg-rose-600 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-2xl border border-rose-400/20">
                <div className="flex items-center gap-4 text-white">
                  <Siren size={32} />
-                 <span className="text-2xl font-black tracking-tight uppercase) uppercase">Emergency SOS</span>
+                 <span className="text-2xl font-black tracking-tight uppercase">Emergency SOS</span>
                </div>
                <ChevronRight size={24} className="text-white/50 group-hover:translate-x-1 transition-transform" />
             </button>
@@ -401,210 +379,262 @@ const App: React.FC = () => {
             <div className="flex items-center gap-6">
               <img src={DEFAULT_LOGO} className="w-16 h-16 object-contain" />
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tighter">{selectedRole === 'nurse' ? 'Nurse Portal' : 'Clinical Hub'}</h1>
-                <p className={`text-[10px] font-black ${selectedRole === 'nurse' ? 'text-emerald-500' : 'text-slate-500'} uppercase tracking-widest`}>
-                  {selectedRole === 'nurse' ? 'Care Delivery Terminal' : 'Medical practitioner console'}
+                <h1 className="text-3xl font-black text-white tracking-tighter">{selectedRole === 'nurse' ? 'Nurse Hub' : 'Doctor Hub'}</h1>
+                <p className={`text-[10px] font-black ${selectedRole === 'nurse' ? 'text-emerald-500' : 'text-blue-500'} uppercase tracking-widest`}>
+                  {selectedRole === 'nurse' ? 'Care Link Terminal' : 'Clinical Command Center'}
                 </p>
               </div>
             </div>
-            <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+            <div className="flex gap-3">
+               <label className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
+                  <FileUp size={24} />
+                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Restore Report</span>
+                  <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
+               </label>
+               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+            </div>
           </header>
 
-          {selectedRole === 'nurse' && (
-            <div className="bg-emerald-600/10 border border-emerald-500/20 p-10 rounded-[3rem] space-y-6 shadow-xl text-center">
-               <FileUp className="w-16 h-16 text-emerald-500 mx-auto" />
-               <div className="space-y-2">
-                 <h3 className="text-2xl font-black text-white">Import Case Metadata</h3>
-                 <p className="text-slate-400 text-sm font-medium">Upload a patient report to pull meds and diagnosis.</p>
-               </div>
-               <label className="block w-full bg-emerald-600 text-white py-6 rounded-full font-black text-xl cursor-pointer active:scale-95 shadow-lg">
-                 LINK CLINICAL PDF
-                 <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
-               </label>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-10">
+            {/* Core Patient Identity */}
             <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-12">
+              <div className="flex justify-between items-center mb-4">
+                 <div className="flex items-center gap-6">
+                    <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl"><User size={24} /></div>
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Identity Node</h2>
+                 </div>
+                 {selectedRole === 'doctor' && (
+                   <label className="p-4 bg-white/5 text-blue-400 rounded-2xl font-black text-[10px] tracking-widest uppercase cursor-pointer hover:bg-white/10 transition-all flex items-center gap-2">
+                     <RefreshCcw size={14} /> Restore Follow-up
+                     <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
+                   </label>
+                 )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="space-y-3">
-                  <label className={`text-[10px] font-black ${selectedRole === 'nurse' ? 'text-emerald-400' : 'text-blue-400'} uppercase tracking-widest ml-4`}>Care Provider Name</label>
-                  <input required type="text" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} placeholder={selectedRole === 'nurse' ? 'Nurse Name' : 'Practitioner'} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-emerald-500 outline-none transition-all placeholder:opacity-30" />
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Practitioner Name</label>
+                  <input required type="text" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none" />
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4">Patient Identity</label>
-                  <input required type="text" value={formData.patientName} onChange={e => setFormData({...formData, patientName: e.target.value})} placeholder="Patient Name" className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-emerald-500 outline-none transition-all" />
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Patient Identity</label>
+                  <input required type="text" value={formData.patientName} onChange={e => setFormData({...formData, patientName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-12 border-t border-white/5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Age</label>
                   <input type="text" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
                 </div>
-                {selectedRole === 'doctor' && (
-                  <>
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Weight (kg)</label>
-                      <input type="text" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Height (cm)</label>
-                      <input type="text" value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Weight (kg)</label>
+                  <input type="text" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Height (cm)</label>
+                  <input type="text" value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
+                </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contact</label>
                   <input type="text" value={formData.contactNumber} onChange={e => setFormData({...formData, contactNumber: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
                 </div>
               </div>
+            </div>
 
-              {/* Added Gender and Vitals Input Section */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 pt-6">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Gender</label>
-                  <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center appearance-none outline-none focus:border-blue-500 shadow-inner">
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
+            {/* Doctor-Only Comprehensive Sections */}
+            {selectedRole === 'doctor' && (
+              <div className="space-y-10">
+                {/* Clinical History Node */}
+                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
+                   <div className="flex items-center gap-6">
+                      <div className="p-4 bg-amber-600/10 text-amber-500 rounded-2xl"><Clipboard size={24} /></div>
+                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Clinical History</h2>
+                   </div>
+                   <div className="grid gap-10">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chief Complaints & Duration</label>
+                        <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Medical History</label>
+                          <textarea value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Surgical History</label>
+                          <textarea value={formData.surgicalHistory} onChange={e => setFormData({...formData, surgicalHistory: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                        </div>
+                      </div>
+                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-4">Temp (°F)</label>
-                  <input type="text" value={formData.vitalTemp} onChange={e => setFormData({...formData, vitalTemp: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-rose-500" />
+
+                {/* Physical Examination Node */}
+                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
+                   <div className="flex items-center gap-6">
+                      <div className="p-4 bg-emerald-600/10 text-emerald-500 rounded-2xl"><Activity size={24} /></div>
+                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Examination & Vitals</h2>
+                   </div>
+                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-6">
+                      {[
+                        {l: 'Temp (°F)', k: 'vitalTemp'}, {l: 'BP (mmHg)', k: 'vitalBp'}, 
+                        {l: 'SpO2 (%)', k: 'vitalSpo2'}, {l: 'HR (bpm)', k: 'vitalHr'}, {l: 'RBS (mg/dL)', k: 'vitalRbs'}
+                      ].map(v => (
+                        <div key={v.k} className="space-y-2 text-center">
+                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{v.l}</label>
+                          <input type="text" value={(formData as any)[v.k]} onChange={e => setFormData({...formData, [v.k]: e.target.value})} className="w-full bg-[#161e31] p-5 rounded-2xl border border-white/5 text-white font-black text-center" />
+                        </div>
+                      ))}
+                   </div>
+                   <div className="space-y-3">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Physical Signs / Observations</label>
+                      <textarea value={formData.signs} onChange={e => setFormData({...formData, signs: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest ml-4">HR (bpm)</label>
-                  <input type="text" value={formData.vitalHr} onChange={e => setFormData({...formData, vitalHr: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-rose-600" />
+
+                {/* Treatment & Diagnosis Node */}
+                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
+                   <div className="flex items-center gap-6">
+                      <div className="p-4 bg-rose-600/10 text-rose-500 rounded-2xl"><BriefcaseMedical size={24} /></div>
+                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Clinical Decision</h2>
+                   </div>
+                   
+                   <div className="space-y-10">
+                      <div className="space-y-3 relative" ref={icdRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Diagnosis / ICD-10 Search</label>
+                        <input type="text" value={formData.provisionalDiagnosis} onChange={e => { handleIcdSearch(e.target.value); }} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-xl font-black text-white outline-none focus:border-rose-500 shadow-inner" />
+                        {icdSuggestions.length > 0 && (
+                          <div className="absolute z-[100] top-full left-0 right-0 mt-2 bg-[#161e31] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            {icdSuggestions.map((item, idx) => (
+                              <button key={idx} type="button" onClick={() => { setFormData(prev => ({ ...prev, provisionalDiagnosis: item.description, icdCode: item.code })); setIcdSuggestions([]); }} className="w-full text-left p-6 px-8 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group">
+                                <div><p className="text-white font-black">{item.description}</p><p className="text-[10px] text-slate-500 font-bold">ICD: {item.code}</p></div>
+                                <ChevronRight size={16} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Prescribed Medications (Rx)</label>
+                          <button type="button" onClick={addMedication} className="p-3 bg-blue-600/20 text-blue-400 rounded-xl flex items-center gap-2 font-black text-[10px] tracking-widest shadow-lg uppercase"><Plus size={14} /> Add Med</button>
+                        </div>
+                        <div className="grid gap-4">
+                           {formData.medications.map(med => (
+                             <div key={med.id} className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-6 bg-[#161e31] rounded-[2rem] border border-white/5 shadow-inner animate-in slide-in-from-left duration-300">
+                                <input placeholder="Med Name" value={med.name} onChange={e => updateMedication(med.id, 'name', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white text-lg outline-none focus:border-blue-500" />
+                                <input placeholder="Dose (e.g. 500mg)" value={med.dose} onChange={e => updateMedication(med.id, 'dose', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
+                                <input placeholder="Timing (e.g. 1-0-1)" value={med.timing} onChange={e => updateMedication(med.id, 'timing', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
+                                <div className="flex justify-between items-center">
+                                  <input placeholder="Route" value={med.route} onChange={e => updateMedication(med.id, 'route', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white w-20 outline-none focus:border-blue-500" />
+                                  <button type="button" onClick={() => removeMedication(med.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg"><Trash2 size={18} /></button>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Investigations Advised (Labs / Imaging)</label>
+                        <textarea value={formData.investigationsAdvised} onChange={e => setFormData({...formData, investigationsAdvised: e.target.value})} rows={2} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Treatment Plan / Procedures</label>
+                        <textarea value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Non-Medicinal Advice / Diet</label>
+                        <textarea value={formData.nonMedicinalAdvice} onChange={e => setFormData({...formData, nonMedicinalAdvice: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      </div>
+                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-4">BP (mmHg)</label>
-                  <input type="text" value={formData.vitalBp} onChange={e => setFormData({...formData, vitalBp: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-blue-500" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4">SpO2 (%)</label>
-                  <input type="text" value={formData.vitalSpo2} onChange={e => setFormData({...formData, vitalSpo2: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-emerald-500" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest ml-4">RBS (mg/dL)</label>
-                  <input type="text" value={formData.vitalRbs} onChange={e => setFormData({...formData, vitalRbs: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-amber-500" />
+
+                {/* Follow-up Node */}
+                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-10">
+                   <div className="flex items-center gap-6">
+                      <div className="p-4 bg-purple-600/10 text-purple-500 rounded-2xl"><CalendarPlus size={24} /></div>
+                      <div>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Follow-up Schedule</h2>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Deploy next clinical node</p>
+                      </div>
+                   </div>
+                   <div className="flex flex-col sm:flex-row items-center gap-8">
+                      <button type="button" onClick={() => setFormData({...formData, followup: formData.followup === 'Yes' ? 'No' : 'Yes'})} className={`p-6 px-10 rounded-full font-black uppercase text-xs tracking-widest border transition-all ${formData.followup === 'Yes' ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_25px_rgba(147,51,234,0.4)]' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                        {formData.followup === 'Yes' ? 'Planned' : 'Not Needed'}
+                      </button>
+                      {formData.followup === 'Yes' && (
+                        <div className="flex items-center gap-4 bg-[#161e31] border border-white/10 p-2 rounded-[2rem]">
+                          <Calendar size={18} className="text-purple-400 ml-4" />
+                          <input type="text" placeholder="e.g. Next Monday / Date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="bg-transparent p-4 text-white font-black outline-none placeholder:text-slate-700" />
+                        </div>
+                      )}
+                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="space-y-10 pt-12 border-t border-white/5">
-                <div className="space-y-3 relative" ref={icdRef}>
-                  <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4">Active Diagnosis / ICD</label>
-                  <div className="relative">
-                    <textarea value={formData.provisionalDiagnosis} onChange={e => handleIcdSearch(e.target.value)} placeholder="Enter diagnosis or search ICD-10 codes..." rows={2} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-emerald-500 resize-none shadow-inner" />
-                    <div className="absolute right-6 top-6 flex flex-col gap-2">
-                       {formData.icdCode && <div className="p-3 bg-emerald-600/10 text-emerald-500 rounded-full flex items-center gap-2 font-black text-xs px-4"><Hash size={14} /> {formData.icdCode}</div>}
+            {/* Nurse-Specific Render Checklist */}
+            {selectedRole === 'nurse' && (
+              <div className="space-y-10">
+                 <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-8">
+                    <div className="flex items-center gap-6">
+                      <div className="p-4 bg-emerald-600/10 text-emerald-500 rounded-2xl"><ClipboardList size={24} /></div>
+                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Care Delivery</h2>
                     </div>
-                  </div>
-                  {icdSuggestions.length > 0 && (
-                    <div className="absolute z-10 top-full left-0 right-0 mt-2 bg-[#161e31] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
-                      {icdSuggestions.map((item, idx) => (
-                        <button key={idx} type="button" onClick={() => { setFormData(prev => ({ ...prev, provisionalDiagnosis: item.description, icdCode: item.code })); setIcdSuggestions([]); }} className="w-full text-left p-6 px-8 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group">
-                          <div><p className="text-white font-black">{item.description}</p><p className="text-[10px] text-slate-500 font-bold uppercase">ICD: {item.code}</p></div>
-                          <ChevronRight size={16} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-4">Current Complaints</label>
-                    <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} placeholder="Describe current patient symptoms..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-4">Past Illness / Surgical History</label>
-                    <textarea value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} placeholder="Document previous medical conditions..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4">Medications & Duration</label>
-                    <textarea value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Prescribe medications with specific durations..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-emerald-500 shadow-inner resize-none" />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest ml-4">Investigations / Diagnostic Imaging</label>
-                    <textarea value={formData.investigationsAdvised} onChange={e => setFormData({...formData, investigationsAdvised: e.target.value})} placeholder="Tests, bloodwork, or imaging required..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-amber-500 shadow-inner resize-none" />
-                  </div>
-                </div>
-
-                {selectedRole === 'nurse' && (
-                  <div className="space-y-8 pt-6">
-                    <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4">Services Rendered Today</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {SERVICE_GROUPS.flatMap(g => g.options).map(opt => (
-                        <button key={opt.label} type="button" onClick={() => toggleServiceCheck(opt.label)} className={`p-6 rounded-[2rem] border transition-all text-left flex items-center gap-4 ${checkedServices.includes(opt.label) ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 shadow-lg' : 'bg-[#161e31] border-white/5 text-slate-400'}`}>
-                           <div className={`p-2 rounded-lg ${checkedServices.includes(opt.label) ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-800'}`}>
-                             <Check size={16} strokeWidth={4} />
-                           </div>
+                        <button key={opt.label} type="button" onClick={() => {
+                          setCheckedServices(prev => prev.includes(opt.label) ? prev.filter(s => s !== opt.label) : [...prev, opt.label]);
+                        }} className={`p-6 rounded-[2rem] border transition-all text-left flex items-center gap-4 ${checkedServices.includes(opt.label) ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 shadow-lg' : 'bg-[#161e31] border-white/5 text-slate-400'}`}>
+                           <div className={`p-2 rounded-lg ${checkedServices.includes(opt.label) ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-800'}`}><Check size={16} strokeWidth={4} /></div>
                            <span className="text-sm font-black tracking-tight">{opt.label}</span>
                         </button>
                       ))}
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Other Services (Not Listed)</label>
-                      <textarea value={otherServices} onChange={e => setOtherServices(e.target.value)} placeholder="Describe unlisted medical services provided..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-emerald-500 shadow-inner resize-none" />
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unlisted Services documentation</label>
+                      <textarea value={otherServices} onChange={e => setOtherServices(e.target.value)} placeholder="Describe unlisted medical care provided..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-emerald-500 shadow-inner resize-none" />
                     </div>
-                  </div>
-                )}
-
-                <div className="pt-6">
-                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-4 mb-4 block">Attach Images / Diagnostic Reports</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                    {formData.photos.map((photo, idx) => (
-                      <div key={idx} className="relative aspect-square rounded-[1.5rem] overflow-hidden group shadow-lg">
-                        <img src={photo} className="w-full h-full object-cover" />
-                        <button onClick={() => removePhoto(idx)} className="absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                      </div>
-                    ))}
-                    <label className="aspect-square bg-[#161e31] border-2 border-dashed border-white/5 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 text-slate-500 cursor-pointer hover:border-blue-500/30 hover:text-blue-400 transition-all active:scale-95 shadow-inner">
-                      <Camera size={24} />
-                      <span className="text-[8px] font-black uppercase tracking-widest">Add Page</span>
-                      <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
-                    </label>
-                  </div>
-                </div>
+                 </div>
               </div>
+            )}
 
-              <div className="pt-12 border-t border-white/5">
-                <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4 mb-4 block">Deployment Bill / Category</label>
-                <div className="relative">
-                  <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-emerald-500">
-                      <option value="">-- Choose Category --</option>
-                      {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
-                  </select>
-                  <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90" />
-                </div>
+            {/* Billing Section (Universal for Hubs) */}
+            <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Deployment Fee Category</label>
+              <div className="relative">
+                <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-blue-500">
+                    <option value="">-- Select Bill Category --</option>
+                    {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
+                </select>
+                <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90" />
               </div>
-
-              <button type="submit" disabled={isGenerating} className={`w-full ${selectedRole === 'nurse' ? 'bg-emerald-600' : 'bg-white text-slate-950'} py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl disabled:opacity-50 mt-10 transition-all`}>
-                {isGenerating ? <><Loader2 className="animate-spin" /> GENERATING...</> : <><FileText size={40} /> {selectedRole === 'nurse' ? 'GENERATE BILL' : 'DEPLOY CLINICAL HUB'}</>}
-              </button>
             </div>
+
+            <button type="submit" disabled={isGenerating} className={`w-full ${selectedRole === 'nurse' ? 'bg-emerald-600 shadow-[0_0_50px_rgba(16,185,129,0.3)]' : 'bg-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.3)]'} py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 transition-all border border-white/10`}>
+              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> {selectedRole === 'nurse' ? 'DEPLOY NURSING BILL' : 'DEPLOY CLINICAL REPORT'}</>}
+            </button>
           </form>
 
           {pdfBlob && (
             <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in zoom-in duration-500 overflow-y-auto">
                <div className="w-full max-w-5xl bg-[#101726] rounded-[4rem] border border-white/10 p-12 space-y-10 shadow-2xl my-auto">
                   <div className="flex justify-between items-center">
-                     <h2 className="text-4xl font-black text-white tracking-tighter">Clinical Report Node</h2>
+                     <h2 className="text-4xl font-black text-white tracking-tighter">Health Node Captured</h2>
                      <button onClick={() => setPdfBlob(null)} className="p-6 bg-slate-800 rounded-3xl text-slate-400 active:scale-90 shadow-xl"><XCircle size={32} /></button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <button onClick={() => pdfUrl && window.open(pdfUrl)} className="p-10 bg-blue-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-500">
-                      <FileDown size={48} /> SAVE PDF
+                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-10 bg-blue-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-500">
+                      <FileDown size={48} /> SAVE HUB PDF
                     </button>
                     <button onClick={() => setShowPaymentQR(true)} className="p-10 bg-emerald-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-emerald-500">
                       <CreditCard size={48} /> PAY ₹{formData.serviceCharge}
                     </button>
                   </div>
                   <div className="bg-white rounded-[2rem] overflow-hidden border-[12px] border-slate-950 h-[600px]">
-                    <iframe src={pdfUrl || ''} title="PDF Preview" className="w-full h-full" />
+                    <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full" />
                   </div>
                </div>
             </div>
@@ -617,7 +647,7 @@ const App: React.FC = () => {
           <header className="flex justify-between items-center bg-[#161e31] backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/10 sticky top-4 z-[50] shadow-2xl">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg"><User size={32} /></div>
-              <div><h2 className="text-2xl font-black text-white tracking-tight">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Link</p></div>
+              <div><h2 className="text-2xl font-black text-white tracking-tight">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Hub</p></div>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowVitalsHistory(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><History size={20} /></button>
@@ -629,8 +659,8 @@ const App: React.FC = () => {
             <div className="space-y-12 animate-in fade-in duration-500">
                <div className="bg-[#101726] border-4 border-dashed border-white/10 p-10 sm:p-16 rounded-[4rem] text-center space-y-12 shadow-2xl">
                   <FileUp className="w-24 h-24 text-blue-500 mx-auto animate-bounce" />
-                  <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Import Health Node</h3><p className="text-slate-500 font-medium text-xl">Upload report to sync your hub.</p></div>
-                  <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-lg uppercase tracking-widest">CHOOSE PDF REPORT<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
+                  <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Connect Health Node</h3><p className="text-slate-500 font-medium text-xl">Upload clinic report to sync hub.</p></div>
+                  <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-lg uppercase tracking-widest">CHOOSE CLINIC PDF<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
                </div>
                <div className="px-4">
                   <a href="https://obe-cure.vercel.app/" target="_blank" rel="noopener noreferrer" className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-2xl border-2 border-orange-100 uppercase tracking-tight">your obesity with us</a>
@@ -638,6 +668,7 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-10 animate-in fade-in duration-700">
+               {/* Quick Vitals Log Card */}
                <div onClick={() => setShowVitalsForm(true)} className="bg-emerald-600/10 border border-emerald-500/20 p-8 rounded-[3rem] space-y-4 shadow-xl cursor-pointer hover:bg-emerald-600/15 transition-all">
                   <div className="flex justify-between items-center">
                     <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Activity className="text-emerald-500" /> Log Daily Vitals</h3>
@@ -721,6 +752,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Daily Vitals Entry Form Modal */}
       {showVitalsForm && (
         <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300 overflow-y-auto">
           <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-xl space-y-10 my-auto shadow-2xl">
@@ -763,6 +795,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Vitals History Modal */}
       {showVitalsHistory && (
         <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-300 overflow-y-auto">
           <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl">
