@@ -21,7 +21,6 @@ const App: React.FC = () => {
   const [isLocked, setIsLocked] = useState(true);
   const [selectedRole, setSelectedRole] = useState<'doctor' | 'patient' | 'nurse' | null>(null);
   const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState('');
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
   
@@ -31,11 +30,7 @@ const App: React.FC = () => {
   const [medsStatus, setMedsStatus] = useState<Record<string, boolean>>({});
   const [adviceStatus, setAdviceStatus] = useState<Record<string, boolean>>({});
   const [reminders, setReminders] = useState<Record<string, boolean>>({});
-  const [showVitalsEntry, setShowVitalsEntry] = useState(false);
   const [showVitalsHistory, setShowVitalsHistory] = useState(false);
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [dailyVitals, setDailyVitals] = useState<DailyVital[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   
   // Doctor/Nurse Form State
   const initialFormState: VisitData = {
@@ -60,8 +55,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
-    setDailyVitals(storageService.getDailyVitals());
-    setAppointments(storageService.getAppointments());
     
     const draft = storageService.getFormDraft();
     if (draft) setFormData(draft);
@@ -513,27 +506,27 @@ const App: React.FC = () => {
                 <div className="space-y-6 pt-6 border-t border-white/5">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-black text-white flex items-center gap-3"><Timer className="text-blue-400" /> Medicine Advice</h3>
-                    <button type="button" onClick={addMedicineAdvice} className="p-3 bg-blue-600/10 text-blue-500 rounded-full hover:bg-blue-600/20 transition-all"><Plus size={20} /></button>
+                    <button type="button" onClick={addMedicineAdvice} className="p-3 bg-blue-600/10 text-blue-500 rounded-full hover:bg-blue-600/20 transition-all shadow-lg"><Plus size={20} /></button>
                   </div>
                   <div className="grid gap-4">
                     {formData.medicineAdvice.map(item => (
                       <div key={item.id} className="bg-[#161e31] border border-white/5 p-6 rounded-[2rem] space-y-4 shadow-xl">
                         <div className="flex gap-4">
                            <input type="text" placeholder="Medicine Name" value={item.medicineName} onChange={e => updateMedicineAdvice(item.id, 'medicineName', e.target.value)} className="flex-1 bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
-                           <button type="button" onClick={() => removeMedicineAdvice(item.id)} className="p-2 text-rose-500"><Trash2 size={20} /></button>
+                           <button type="button" onClick={() => removeMedicineAdvice(item.id)} className="p-2 text-rose-500 hover:scale-110 transition-transform"><Trash2 size={20} /></button>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                            <div className="space-y-1">
                              <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Time</label>
-                             <input type="text" placeholder="e.g. 8am" value={item.time} onChange={e => updateMedicineAdvice(item.id, 'time', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center" />
+                             <input type="text" placeholder="e.g. 8am" value={item.time} onChange={e => updateMedicineAdvice(item.id, 'time', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center shadow-inner" />
                            </div>
                            <div className="space-y-1">
                              <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Duration</label>
-                             <input type="text" placeholder="e.g. 5 days" value={item.duration} onChange={e => updateMedicineAdvice(item.id, 'duration', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center" />
+                             <input type="text" placeholder="e.g. 5 days" value={item.duration} onChange={e => updateMedicineAdvice(item.id, 'duration', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center shadow-inner" />
                            </div>
                            <div className="space-y-1">
                              <label className="text-[8px] font-black text-slate-500 uppercase ml-2">Days</label>
-                             <input type="text" placeholder="e.g. Mon-Fri" value={item.days} onChange={e => updateMedicineAdvice(item.id, 'days', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center" />
+                             <input type="text" placeholder="e.g. Mon-Fri" value={item.days} onChange={e => updateMedicineAdvice(item.id, 'days', e.target.value)} className="w-full bg-slate-900/50 p-3 rounded-xl border border-white/5 text-xs font-bold text-white text-center shadow-inner" />
                            </div>
                         </div>
                       </div>
@@ -546,15 +539,15 @@ const App: React.FC = () => {
               <div className="pt-12 border-t border-white/5">
                 <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest ml-4 mb-4 block">Service / Fee Selection</label>
                 <div className="relative">
-                  <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-emerald-500">
+                  <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-emerald-500 transition-all">
                       <option value="">-- Choose Category --</option>
                       {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
                   </select>
-                  <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90" />
+                  <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90 pointer-events-none" />
                 </div>
               </div>
 
-              <button type="submit" disabled={isGenerating} className={`w-full ${selectedRole === 'nurse' ? 'bg-emerald-600' : 'bg-white text-slate-950'} py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl disabled:opacity-50 mt-10 transition-all hover:scale-[1.01]`}>
+              <button type="submit" disabled={isGenerating} className={`w-full ${selectedRole === 'nurse' ? 'bg-emerald-600' : 'bg-white text-slate-950'} py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl disabled:opacity-50 mt-10 transition-all hover:scale-[1.02] active:scale-95`}>
                 {isGenerating ? <><Loader2 className="animate-spin" /> GENERATING NODE...</> : <><FileText size={40} /> {selectedRole === 'nurse' ? 'DEPLOY CARE REPORT' : 'DEPLOY CLINICAL HUB'}</>}
               </button>
             </div>
@@ -564,18 +557,18 @@ const App: React.FC = () => {
             <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in zoom-in duration-500 overflow-y-auto">
                <div className="w-full max-w-5xl bg-[#101726] rounded-[4rem] border border-white/10 p-12 space-y-10 shadow-2xl my-auto">
                   <div className="flex justify-between items-center">
-                     <h2 className="text-4xl font-black text-white tracking-tighter flex items-center gap-6"><CheckCircle2 className="text-emerald-500 w-12 h-12" /> {selectedRole === 'nurse' ? 'Care Report Ready' : 'Clinical Report Ready'}</h2>
-                     <button onClick={() => setPdfBlob(null)} className="p-6 bg-slate-800 rounded-3xl text-slate-400 active:scale-90"><XCircle size={32} /></button>
+                     <h2 className="text-4xl font-black text-white tracking-tighter flex items-center gap-6"><CheckCircle2 className="text-emerald-500 w-12 h-12" /> Report Compiled</h2>
+                     <button onClick={() => setPdfBlob(null)} className="p-6 bg-slate-800 rounded-3xl text-slate-400 active:scale-90 hover:bg-slate-700 transition-colors shadow-xl"><XCircle size={32} /></button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-10 bg-blue-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl">
+                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-10 bg-blue-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl hover:bg-blue-500 transition-colors">
                       <FileDown size={48} /> SAVE PDF
                     </button>
-                    <button onClick={() => setShowPaymentQR(true)} className="p-10 bg-emerald-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl">
+                    <button onClick={() => setShowPaymentQR(true)} className="p-10 bg-emerald-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 active:scale-95 shadow-2xl hover:bg-emerald-500 transition-colors">
                       <CreditCard size={48} /> PAY ₹{formData.serviceCharge}
                     </button>
                   </div>
-                  <div className="bg-white rounded-[2rem] overflow-hidden border-[12px] border-slate-950 shadow-inner h-[600px]">
+                  <div className="bg-white rounded-[2rem] overflow-hidden border-[12px] border-slate-950 shadow-2xl h-[600px]">
                     <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full" />
                   </div>
                </div>
@@ -588,48 +581,49 @@ const App: React.FC = () => {
         <div className="max-w-2xl mx-auto px-6 py-12 space-y-12 pb-80">
           <header className="flex justify-between items-center bg-[#161e31] backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/10 sticky top-4 z-[50] shadow-2xl">
             <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]"><User size={32} /></div>
-              <div><h2 className="text-2xl font-black text-white">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Link</p></div>
+              <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]"><User size={32} /></div>
+              <div><h2 className="text-2xl font-black text-white tracking-tight">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Link</p></div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setShowVitalsHistory(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400"><History size={20} /></button>
-              <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-4 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+              <button onClick={() => setShowVitalsHistory(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><History size={20} /></button>
+              <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-4 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg hover:text-white transition-colors"><ArrowLeft size={24} /></button>
             </div>
           </header>
 
           {!currentPatientRecord ? (
-            <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="space-y-12 animate-in fade-in duration-500">
                <div className="bg-[#101726] border-4 border-dashed border-white/10 p-10 sm:p-16 rounded-[4rem] text-center space-y-12 shadow-2xl">
-                  <FileUp className="w-20 h-20 text-blue-500 mx-auto" />
+                  <FileUp className="w-24 h-24 text-blue-500 mx-auto animate-bounce" />
                   <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Import Health Node</h3><p className="text-slate-500 font-medium text-xl">Upload report to sync your hub.</p></div>
-                  <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-[0_0_40px_rgba(37,99,235,0.4)]">CHOOSE PDF REPORT<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
+                  <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-[0_0_50px_rgba(37,99,235,0.4)] hover:bg-blue-500 transition-colors uppercase tracking-widest">CHOOSE PDF REPORT<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
                </div>
                
+               {/* Obesity Clinic Button Refined (Exact Screenshot Style) */}
                <div className="px-4">
                   <a 
                     href="https://obe-cure.vercel.app/" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_55px_rgba(249,115,22,0.8)] transition-all active:scale-95 text-center border-2 border-orange-200 tracking-tight"
+                    className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_65px_rgba(249,115,22,0.95)] transition-all active:scale-95 text-center border-2 border-orange-100 uppercase tracking-tight hover:shadow-[0_0_85px_rgba(249,115,22,1)]"
                   >
                     your obesity with us
                   </a>
                </div>
             </div>
           ) : (
-            <div className="space-y-8 animate-in fade-in duration-700">
-               {/* Medicine Advice Section (Metadata structured matter data) */}
+            <div className="space-y-10 animate-in fade-in duration-700">
+               {/* Medicine Advice (Structured metadata data) */}
                {currentPatientRecord.medicineAdvice && currentPatientRecord.medicineAdvice.length > 0 && (
-                 <div className="bg-blue-600/10 border border-blue-500/20 p-8 rounded-[3rem] space-y-6 shadow-xl">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-4"><Timer className="text-blue-400" /> Medicine Advice</h3>
+                 <div className="bg-blue-600/10 border border-blue-500/20 p-8 rounded-[3.5rem] space-y-6 shadow-2xl">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Timer className="text-blue-400" /> Medicine Advice</h3>
                     <div className="grid gap-4">
                       {currentPatientRecord.medicineAdvice.map(item => (
-                        <div key={item.id} onClick={() => toggleAdvice(item.id)} className={`p-6 rounded-[2rem] border transition-all cursor-pointer ${adviceStatus[item.id] ? 'bg-blue-500/5 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
-                           <p className="text-xl font-black text-white">{item.medicineName}</p>
-                           <div className="flex gap-4 mt-2">
-                             <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-400/10 px-3 py-1 rounded-full">🕒 {item.time}</span>
-                             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-400/10 px-3 py-1 rounded-full">⏳ {item.duration}</span>
-                             <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest bg-amber-400/10 px-3 py-1 rounded-full">🗓️ {item.days}</span>
+                        <div key={item.id} onClick={() => toggleAdvice(item.id)} className={`p-7 rounded-[2.5rem] border transition-all cursor-pointer shadow-lg ${adviceStatus[item.id] ? 'bg-blue-500/5 opacity-60' : 'bg-[#161e31] border-white/5 hover:border-white/10'}`}>
+                           <p className="text-2xl font-black text-white">{item.medicineName}</p>
+                           <div className="flex gap-4 mt-4 flex-wrap">
+                             <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-400/10 px-4 py-2 rounded-full border border-blue-400/10 shadow-inner">🕒 {item.time}</span>
+                             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-400/10 px-4 py-2 rounded-full border border-emerald-400/10 shadow-inner">⏳ {item.duration}</span>
+                             <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest bg-amber-400/10 px-4 py-2 rounded-full border border-amber-400/10 shadow-inner">🗓️ {item.days}</span>
                            </div>
                         </div>
                       ))}
@@ -639,39 +633,41 @@ const App: React.FC = () => {
 
                {/* Automated Partner Lab Connect */}
                {currentPatientRecord.investigationsAdvised && currentPatientRecord.investigationsAdvised.trim().length > 0 && (
-                 <div className="bg-amber-600/10 border border-amber-500/20 p-8 rounded-[3rem] space-y-6 shadow-xl animate-in slide-in-from-top duration-500">
+                 <div className="bg-amber-600/10 border border-amber-500/20 p-8 rounded-[3.5rem] space-y-6 shadow-2xl animate-in slide-in-from-top duration-500">
                     <div className="flex items-center gap-4">
-                       <div className="w-14 h-14 bg-amber-500 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg shadow-amber-500/20"><TestTube size={28} /></div>
+                       <div className="w-16 h-16 bg-amber-500 rounded-[2rem] flex items-center justify-center text-white shadow-xl shadow-amber-500/20"><TestTube size={32} /></div>
                        <div>
-                          <h3 className="text-2xl font-black text-white">Lab Node Active</h3>
-                          <p className="text-xs font-medium text-amber-500/80 uppercase tracking-widest">Connect with Partner Labs</p>
+                          <h3 className="text-2xl font-black text-white uppercase tracking-tight">Lab Node Active</h3>
+                          <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Connect with Partner Labs</p>
                        </div>
                     </div>
-                    <div className="p-6 bg-slate-900/50 rounded-[1.5rem] border border-white/5">
-                       <p className="text-sm text-slate-300 font-bold italic">"{currentPatientRecord.investigationsAdvised}"</p>
+                    <div className="p-7 bg-slate-900/50 rounded-[2rem] border border-white/5 shadow-inner">
+                       <p className="text-lg text-slate-300 font-bold italic">"{currentPatientRecord.investigationsAdvised}"</p>
                     </div>
                     <button 
                       onClick={handlePartnerLabConnect}
-                      className="w-full bg-amber-600 text-white py-8 rounded-full font-black text-xl flex items-center justify-center gap-4 active:scale-95 transition-all shadow-[0_0_30px_rgba(245,158,11,0.2)]"
+                      className="w-full bg-amber-600 text-white py-9 rounded-full font-black text-xl flex items-center justify-center gap-4 active:scale-95 transition-all shadow-[0_0_40px_rgba(245,158,11,0.3)] hover:bg-amber-500 uppercase tracking-widest"
                     >
-                       <Truck size={28} /> CONNECT WITH PARTNER LAB
+                       <Truck size={32} /> CONNECT PARTNER LAB
                     </button>
                  </div>
                )}
 
-               <div className="bg-[#101726] border border-white/10 p-8 rounded-[3rem] space-y-8 shadow-xl">
-                 <h3 className="text-2xl font-black text-white flex items-center gap-4"><Pill className="text-blue-500" /> Medication Plan</h3>
+               <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] space-y-8 shadow-2xl">
+                 <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Pill className="text-blue-500" /> Medication Plan</h3>
                  <div className="grid gap-4">
                    {currentPatientRecord.medications.map(med => (
-                     <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex justify-between items-center ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5 hover:border-white/20'}`}>
-                        <div className="flex gap-4 items-center">
-                          <div className={`p-3 rounded-xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'}`}><Check size={20} /></div>
+                     <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-7 rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5 hover:border-white/15'}`}>
+                        <div className="flex gap-6 items-center">
+                          <div className={`p-4 rounded-2xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'} shadow-xl transition-all`}>
+                            <Check size={24} strokeWidth={4} />
+                          </div>
                           <div>
-                            <p className={`text-xl font-black ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'}`}>{med.name}</p>
-                            <p className="text-xs font-black text-blue-500 uppercase tracking-widest">{med.timing}</p>
+                            <p className={`text-2xl font-black ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'} transition-all`}>{med.name}</p>
+                            <p className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">{med.timing} • {med.route}</p>
                           </div>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); }} className={`p-4 rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={18} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); }} className={`p-5 rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-110' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={20} /></button>
                      </div>
                    ))}
                  </div>
@@ -682,7 +678,7 @@ const App: React.FC = () => {
                     href="https://obe-cure.vercel.app/" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_55px_rgba(249,115,22,0.8)] transition-all active:scale-95 text-center border-2 border-orange-200 tracking-tight"
+                    className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_0_65px_rgba(249,115,22,0.95)] transition-all active:scale-95 text-center border-2 border-orange-100 uppercase tracking-tight hover:shadow-[0_0_85px_rgba(249,115,22,1)]"
                   >
                     your obesity with us
                   </a>
@@ -696,9 +692,9 @@ const App: React.FC = () => {
           <div className="fixed bottom-10 right-8 z-[60]">
              <button 
                 onClick={() => setShowEmergencyDialog(true)} 
-                className="w-20 h-20 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(225,29,72,0.6)] active:scale-90 transition-all border-2 border-white/20"
+                className="w-24 h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-[0_0_60px_rgba(225,29,72,0.7)] active:scale-90 transition-all border-4 border-white/20 animate-pulse hover:animate-none"
               >
-                <Siren className="w-10 h-10" />
+                <Siren className="w-12 h-12" />
               </button>
           </div>
         </div>
@@ -706,45 +702,45 @@ const App: React.FC = () => {
 
       {showEmergencyDialog && (
         <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in">
-          <div className="bg-slate-900 border border-white/10 p-12 rounded-[4rem] w-full max-w-sm space-y-10 shadow-2xl">
-            <Siren className="w-20 h-20 text-rose-500 mx-auto animate-bounce" />
+          <div className="bg-slate-900 border border-white/10 p-12 rounded-[5rem] w-full max-w-md space-y-12 shadow-2xl">
+            <Siren className="w-24 h-24 text-rose-500 mx-auto animate-bounce" />
             <div className="text-center space-y-4">
-              <h3 className="text-3xl font-black text-white uppercase">SOS Alert</h3>
-              <p className="text-slate-500 font-medium">Notify medical emergency team?</p>
+              <h3 className="text-4xl font-black text-white uppercase tracking-tighter">SOS Alert</h3>
+              <p className="text-slate-500 font-bold text-lg">Deploy emergency medical support?</p>
             </div>
             <div className="grid gap-4">
-              <button onClick={() => handleEmergencyAction('ambulance')} className="w-full p-8 bg-rose-600 text-white rounded-full font-black uppercase text-xl active:scale-95 shadow-lg">Ambulance Request</button>
-              <button onClick={() => handleEmergencyAction('doctor')} className="w-full p-8 bg-blue-600 text-white rounded-full font-black uppercase text-xl active:scale-95 shadow-lg">Urgent Doctor</button>
-              <button onClick={() => setShowEmergencyDialog(false)} className="w-full p-4 text-slate-600 font-black uppercase text-xs tracking-widest">Cancel</button>
+              <button onClick={() => handleEmergencyAction('ambulance')} className="w-full p-9 bg-rose-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 shadow-[0_0_40px_rgba(225,29,72,0.5)] hover:bg-rose-500 transition-colors">Ambulance SOS</button>
+              <button onClick={() => handleEmergencyAction('doctor')} className="w-full p-9 bg-blue-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 shadow-[0_0_40px_rgba(37,99,235,0.5)] hover:bg-blue-500 transition-colors">Urgent Doctor</button>
+              <button onClick={() => setShowEmergencyDialog(false)} className="w-full p-4 text-slate-600 font-black uppercase text-xs tracking-widest hover:text-white transition-colors">Cancel Notification</button>
             </div>
           </div>
         </div>
       )}
 
       {showPaymentQR && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in zoom-in duration-300">
-          <div className="bg-[#101726] border border-white/10 p-8 rounded-[3rem] w-full max-w-md space-y-8 shadow-2xl">
+        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-in zoom-in duration-300">
+          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-md space-y-10 shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black text-white flex items-center gap-4"><QrCode className="text-emerald-500" /> Payment Terminal</h3>
-              <button onClick={() => setShowPaymentQR(false)} className="p-3 bg-white/5 rounded-xl text-slate-500 shadow-lg"><XCircle size={20} /></button>
+              <h3 className="text-3xl font-black text-white flex items-center gap-4"><QrCode className="text-emerald-500" /> Clinical Payment</h3>
+              <button onClick={() => setShowPaymentQR(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 shadow-xl hover:text-white transition-colors"><XCircle size={24} /></button>
             </div>
-            <div className="bg-white p-4 rounded-[2rem] aspect-square overflow-hidden shadow-inner flex items-center justify-center">
+            <div className="bg-white p-6 rounded-[3rem] aspect-square overflow-hidden shadow-2xl flex items-center justify-center border-8 border-slate-950">
               <img 
                 src="https://lh3.googleusercontent.com/d/14Ax9aU31Gaja2kAvnLbIFLbhbbAiB4D5" 
                 alt="Payment QR Code" 
                 className="w-full h-full object-contain"
               />
             </div>
-            <div className="text-center space-y-2">
-              <p className="text-emerald-400 font-black text-4xl">₹{formData.serviceCharge}</p>
-              <p className="text-slate-500 font-medium text-sm">Scan to finalize clinical node</p>
+            <div className="text-center space-y-3">
+              <p className="text-emerald-400 font-black text-5xl tracking-tighter">₹{formData.serviceCharge}</p>
+              <p className="text-slate-500 font-bold text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical node</p>
             </div>
             <button 
               onClick={() => {
                 const upiLink = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${formData.serviceCharge}&cu=INR`;
                 window.location.href = upiLink;
               }}
-              className="w-full bg-emerald-600 text-white py-8 rounded-full font-black text-xl active:scale-95 transition-all shadow-lg uppercase tracking-widest"
+              className="w-full bg-emerald-600 text-white py-9 rounded-full font-black text-2xl active:scale-95 transition-all shadow-[0_0_50px_rgba(16,185,129,0.4)] uppercase tracking-widest hover:bg-emerald-500"
             >
               Open UPI App
             </button>

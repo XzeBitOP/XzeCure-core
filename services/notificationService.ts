@@ -40,7 +40,7 @@ export const notificationService = {
     setTimeout(() => {
       new Notification(`Time for Medication: ${med.name}`, {
         body: `Patient: ${patientName}\nDose: ${med.dose}\nRoute: ${med.route}`,
-        icon: 'https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR'
+        icon: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR'
       });
     }, diff);
 

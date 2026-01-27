@@ -28,8 +28,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: 'https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
-      badge: 'https://drive.google.com/uc?export=view&id=1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
+      icon: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
+      badge: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
       vibrate: [200, 100, 200]
     })
   );
