@@ -1,4 +1,3 @@
-
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { VisitData } from '../types';
@@ -69,6 +68,7 @@ export const generateVisitPdf = async (
   });
 
   const now = new Date();
+  const treatmentPlanIncludesContinue = visitData.treatment?.toLowerCase().includes('continue');
 
   container.innerHTML = `
     <div style="height: 100%; display: flex; flex-direction: column;">
@@ -148,39 +148,13 @@ export const generateVisitPdf = async (
             <div style="font-size: 13pt; font-weight: 900; color: #1e293b;">${visitData.provisionalDiagnosis}</div>
           </section>` : ''}
 
-          <!-- Prescription Tables -->
-          ${visitData.medicineAdvice && visitData.medicineAdvice.length > 0 ? `
-          <section style="margin-bottom: 30px;">
-            <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Medicine Schedule</h4>
-            <table style="width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <thead>
-                <tr style="background: #1e3a8a;">
-                  <th style="padding: 10px; text-align: left; font-size: 9pt; color: #ffffff; font-weight: 900;">MEDICINE</th>
-                  <th style="padding: 10px; text-align: center; font-size: 9pt; color: #ffffff; font-weight: 900;">TIME</th>
-                  <th style="padding: 10px; text-align: center; font-size: 9pt; color: #ffffff; font-weight: 900;">DURATION</th>
-                  <th style="padding: 10px; text-align: right; font-size: 9pt; color: #ffffff; font-weight: 900;">DAYS</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${visitData.medicineAdvice.map((advice, idx) => `
-                  <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 12px 10px; font-size: 10.5pt; font-weight: 800; color: #0f172a;">${advice.medicineName}</td>
-                    <td style="padding: 12px 10px; text-align: center; font-size: 10pt; color: #475569; font-weight: 600;">${advice.time}</td>
-                    <td style="padding: 12px 10px; text-align: center; font-size: 10pt; color: #475569; font-weight: 600;">${advice.duration}</td>
-                    <td style="padding: 12px 10px; text-align: right; font-size: 10.5pt; font-weight: 800; color: #1e3a8a;">${advice.days}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </section>` : ''}
-
           <section>
             <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Prescribed Medications (Rx)</h4>
             <table style="width: 100%; border-collapse: collapse;">
               <thead>
                 <tr style="background: #f8fafc; border-bottom: 2px solid #3b82f6;">
                   <th style="padding: 12px 10px; text-align: left; font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Item Details</th>
-                  <th style="padding: 12px 10px; text-align: right; font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Frequency & Timing</th>
+                  <th style="padding: 12px 10px; text-align: right; font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Frequency & Duration</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,24 +166,37 @@ export const generateVisitPdf = async (
                     </td>
                     <td style="padding: 14px 10px; text-align: right;">
                       <div style="font-size: 11pt; font-weight: 900; color: #1e3a8a;">${m.timing}</div>
-                      <div style="font-size: 8pt; color: #3b82f6; font-weight: 800; text-transform: uppercase; margin-top: 2px;">Daily Frequency: ${m.frequency}x</div>
+                      <div style="font-size: 8pt; color: #3b82f6; font-weight: 800; text-transform: uppercase; margin-top: 2px;">${m.days ? `FOR ${m.days} DAYS` : 'CONTINUE'}</div>
                     </td>
                   </tr>
-                `).join('') : '<tr><td colspan="2" style="padding: 30px; text-align: center; color: #94a3b8; font-style: italic; font-weight: 600;">No additional medications documented.</td></tr>'}
+                `).join('') : '<tr><td colspan="2" style="padding: 30px; text-align: center; color: #94a3b8; font-style: italic; font-weight: 600;">No medications documented.</td></tr>'}
               </tbody>
             </table>
           </section>
+
+          ${visitData.treatment ? `
+          <section style="margin-top: 30px; margin-bottom: 30px;">
+            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
+               <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0;">Treatment Plan / Procedures</h4>
+            </div>
+            <div style="font-size: 11.5pt; line-height: 1.6; white-space: pre-wrap; color: #334155; font-weight: 500;">
+              ${visitData.treatment}
+              ${treatmentPlanIncludesContinue ? '<div style="font-size: 9pt; color: #e11d48; font-weight: 800; margin-top: 8px; text-transform: uppercase;">* Continue indicates 30 days unless specified otherwise</div>' : ''}
+            </div>
+          </section>
+          ` : ''}
+
         </div>
 
         <div style="flex: 1; border-left: 2px dashed #e2e8f0; padding-left: 25px;">
           <section style="margin-bottom: 30px;">
             <h4 style="font-size: 9.5pt; text-transform: uppercase; font-weight: 900; color: #b45309; border-bottom: 2px solid #ffedd5; padding-bottom: 6px; margin-bottom: 12px;">Investigations Advice</h4>
-            <div style="font-size: 10.5pt; font-weight: 800; color: #9a3412; line-height: 1.6; white-space: pre-wrap;">${visitData.investigationsAdvised || 'Standard health screening and routine observation recommended.'}</div>
+            <div style="font-size: 10.5pt; font-weight: 800; color: #9a3412; line-height: 1.6; white-space: pre-wrap;">${visitData.investigationsAdvised || 'Routine health screening recommended.'}</div>
           </section>
 
           <section style="margin-bottom: 30px;">
             <h4 style="font-size: 9.5pt; text-transform: uppercase; font-weight: 900; color: #15803d; border-bottom: 2px solid #dcfce7; padding-bottom: 6px; margin-bottom: 12px;">Special Instructions</h4>
-            <div style="font-size: 9.5pt; line-height: 1.6; color: #166534; white-space: pre-wrap; font-weight: 600;">${visitData.nonMedicinalAdvice || 'Maintain hydration, follow diet chart as discussed, and monitor vitals daily.'}</div>
+            <div style="font-size: 9.5pt; line-height: 1.6; color: #166534; white-space: pre-wrap; font-weight: 600;">${visitData.nonMedicinalAdvice || 'Monitor vitals daily and maintain hydration.'}</div>
           </section>
 
           ${visitData.followup === 'Yes' ? `
@@ -251,17 +238,6 @@ export const generateVisitPdf = async (
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     
-    // Explicitly define the matter data / metadata for Subject
-    const matterData = {
-      patient: visitData.patientName,
-      diagnosis: visitData.provisionalDiagnosis,
-      medications: visitData.medications,
-      medicineSchedule: visitData.medicineAdvice, // durations are here
-      investigations: visitData.investigationsAdvised,
-      visitId: visitData.visitId,
-      date: now.toISOString()
-    };
-
     pdf.setProperties({
       title: `XzeCure Report - ${visitData.patientName}`,
       subject: btoa(unescape(encodeURIComponent(JSON.stringify(visitData)))),

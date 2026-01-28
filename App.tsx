@@ -6,7 +6,7 @@ import {
   Plus, FileText, FileDown, CreditCard, Thermometer, 
   Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save
 } from 'lucide-react';
-import { SECRET_PIN, NURSE_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
+import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem } from './types';
 import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
@@ -18,7 +18,7 @@ GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@^4.0.379/build/pdf.wo
 const App: React.FC = () => {
   const [isBooting, setIsBooting] = useState(true);
   const [isLocked, setIsLocked] = useState(true);
-  const [selectedRole, setSelectedRole] = useState<'doctor' | 'patient' | 'nurse' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'doctor' | 'patient' | null>(null);
   const [pin, setPin] = useState('');
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
@@ -37,11 +37,11 @@ const App: React.FC = () => {
   });
   const [editingVitalId, setEditingVitalId] = useState<string | null>(null);
   
-  // Nurse/Doctor Hub State
+  // Doctor Hub State
   const [checkedServices, setCheckedServices] = useState<string[]>([]);
   const [otherServices, setOtherServices] = useState('');
 
-  // Doctor/Nurse Form State
+  // Doctor Form State
   const initialFormState: VisitData = {
     visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
@@ -81,7 +81,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (formData !== initialFormState && !isLocked && (selectedRole === 'doctor' || selectedRole === 'nurse')) {
+    if (formData !== initialFormState && !isLocked && selectedRole === 'doctor') {
       storageService.saveFormDraft(formData);
     }
   }, [formData, selectedRole, isLocked]);
@@ -121,10 +121,7 @@ const App: React.FC = () => {
     setIsImporting(true);
     try {
       const visitData = await parsePdfMetadata(file);
-      if (selectedRole === 'nurse') {
-        setFormData({ ...visitData, serviceCharge: 0, serviceName: 'Nursing Service' });
-        showToast('Clinical Metadata Loaded', 'success');
-      } else if (selectedRole === 'doctor') {
+      if (selectedRole === 'doctor') {
         // Restore for follow-up
         setFormData({
           ...visitData,
@@ -155,13 +152,23 @@ const App: React.FC = () => {
   const handleMedicineOrder = () => {
     if (!currentPatientRecord) return;
     showToast('Pharmacy Link...', 'info');
-    let medsList = '';
-    if (currentPatientRecord.medicineAdvice && currentPatientRecord.medicineAdvice.length > 0) {
-      medsList = currentPatientRecord.medicineAdvice.map(m => `${m.medicineName} (for ${m.days || 'prescribed duration'})`).join(', ');
-    } else {
-      medsList = currentPatientRecord.medications.map(m => m.name).join(', ');
-    }
-    const messageText = `Hi I'm pt from XzeCure I need ${medsList}. this is a auto generated message. Please confirm before delivering.`;
+    
+    // Prepare meds list including "Continue" (30 days) logic
+    const regularMeds = currentPatientRecord.medications.map(m => {
+      const duration = m.days ? `${m.days} days` : '30 days (Continue)';
+      return `${m.name} [${m.timing}] for ${duration}`;
+    });
+    
+    const adviceMeds = currentPatientRecord.medicineAdvice.map(m => {
+       const duration = m.days || 'prescribed cycle';
+       return `${m.medicineName} [${m.time}] for ${duration}`;
+    });
+
+    const combinedList = [...regularMeds, ...adviceMeds].join(', ');
+    const treatmentSuffix = currentPatientRecord.treatment ? `\nTreatment Note: ${currentPatientRecord.treatment}` : '';
+    
+    const messageText = `Hi I'm patient ${currentPatientRecord.patientName} from XzeCure. I need the following medicines (including 30-day continuation stock): ${combinedList}.${treatmentSuffix}\n\nThis is an automated order request. Please confirm availability and delivery slot.`;
+    
     const message = encodeURIComponent(messageText);
     window.open(`https://wa.me/917016583135?text=${message}`, "_blank");
   };
@@ -197,9 +204,6 @@ const App: React.FC = () => {
     setPin(value);
     if (value.length === 6) {
       if (selectedRole === 'doctor' && value === SECRET_PIN) {
-        setIsLocked(false);
-        setPin('');
-      } else if (selectedRole === 'nurse' && value === NURSE_PIN) {
         setIsLocked(false);
         setPin('');
       } else {
@@ -246,7 +250,7 @@ const App: React.FC = () => {
   };
 
   const addMedication = () => {
-    const newMed: Medication = { id: crypto.randomUUID(), name: '', dose: '', timing: '', route: 'Oral', frequency: 1 };
+    const newMed: Medication = { id: crypto.randomUUID(), name: '', dose: '', timing: '', route: 'Oral', frequency: 1, days: '' };
     setFormData({ ...formData, medications: [...formData.medications, newMed] });
   };
 
@@ -265,13 +269,8 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsGenerating(true);
     try {
-      const vId = `${selectedRole === 'doctor' ? 'XZ-DR' : 'XZ-NS'}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-      let finalComplaints = formData.complaints;
-      if (selectedRole === 'nurse') {
-        const servicesText = checkedServices.length > 0 ? `Services Rendered: ${checkedServices.join(', ')}` : '';
-        const otherText = otherServices ? `Additional Notes: ${otherServices}` : '';
-        finalComplaints = [servicesText, otherText, formData.complaints].filter(Boolean).join('\n\n');
-      }
+      const vId = `XZ-DR-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      const finalComplaints = formData.complaints;
       const finalData = { ...formData, visitId: vId, complaints: finalComplaints };
       
       const blob = await generateVisitPdf(finalData, finalData.photos, DEFAULT_LOGO);
@@ -342,17 +341,10 @@ const App: React.FC = () => {
                    </div>
                    <ChevronRight size={24} className="text-slate-500 group-hover:translate-x-1 transition-transform" />
                 </button>
-                <button onClick={() => setSelectedRole('nurse')} className="group w-full p-8 bg-emerald-950/30 border border-emerald-500/20 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-lg hover:bg-emerald-900/40">
-                   <div className="flex items-center gap-4 text-emerald-400">
-                     <UserCheck size={32} />
-                     <span className="text-2xl font-black tracking-tight">Nurse Access</span>
-                   </div>
-                   <ChevronRight size={24} className="text-emerald-500 group-hover:translate-x-1 transition-transform" />
-                </button>
               </div>
             ) : (
               <div className="animate-in zoom-in duration-300">
-                <input autoFocus type="password" maxLength={6} value={pin} onChange={(e) => handlePinInput(e.target.value)} placeholder="••••••" className={`w-full bg-[#161e31] border-2 ${selectedRole === 'nurse' ? 'border-emerald-500/30' : 'border-blue-500/30'} text-white text-center py-7 rounded-full text-5xl font-black outline-none transition-all placeholder:text-slate-800 shadow-2xl`} />
+                <input autoFocus type="password" maxLength={6} value={pin} onChange={(e) => handlePinInput(e.target.value)} placeholder="••••••" className={`w-full bg-[#161e31] border-2 border-blue-500/30 text-white text-center py-7 rounded-full text-5xl font-black outline-none transition-all placeholder:text-slate-800 shadow-2xl`} />
                 <button onClick={() => { setSelectedRole(null); setPin(''); }} className="w-full text-center mt-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Back to Roles</button>
               </div>
             )}
@@ -373,15 +365,15 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 selection:bg-blue-500 selection:text-white pb-20">
       {toast && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[300] bg-white text-slate-950 px-10 py-5 rounded-full shadow-2xl font-black text-sm tracking-widest border border-white/20">{toast.message.toUpperCase()}</div>}
 
-      {(selectedRole === 'doctor' || selectedRole === 'nurse') && (
+      {selectedRole === 'doctor' && (
         <div className="max-w-4xl mx-auto px-6 py-12 space-y-12 pb-32">
-          <header className={`flex justify-between items-center ${selectedRole === 'nurse' ? 'bg-emerald-950/20 border-emerald-500/20' : 'bg-[#161e31] border-white/10'} p-6 rounded-[2.5rem] border shadow-2xl`}>
+          <header className={`flex justify-between items-center bg-[#161e31] border-white/10 p-6 rounded-[2.5rem] border shadow-2xl`}>
             <div className="flex items-center gap-6">
               <img src={DEFAULT_LOGO} className="w-16 h-16 object-contain" />
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tighter">{selectedRole === 'nurse' ? 'Nurse Hub' : 'Doctor Hub'}</h1>
-                <p className={`text-[10px] font-black ${selectedRole === 'nurse' ? 'text-emerald-500' : 'text-blue-500'} uppercase tracking-widest`}>
-                  {selectedRole === 'nurse' ? 'Care Link Terminal' : 'Clinical Command Center'}
+                <h1 className="text-3xl font-black text-white tracking-tighter">Doctor Hub</h1>
+                <p className={`text-[10px] font-black text-blue-500 uppercase tracking-widest`}>
+                  Clinical Command Center
                 </p>
               </div>
             </div>
@@ -421,10 +413,14 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Age</label>
                   <input type="text" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Gender</label>
+                  <input type="text" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" placeholder="M/F/O" />
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Weight (kg)</label>
@@ -521,10 +517,11 @@ const App: React.FC = () => {
                         </div>
                         <div className="grid gap-4">
                            {formData.medications.map(med => (
-                             <div key={med.id} className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-6 bg-[#161e31] rounded-[2rem] border border-white/5 shadow-inner animate-in slide-in-from-left duration-300">
+                             <div key={med.id} className="grid grid-cols-1 sm:grid-cols-5 gap-4 p-6 bg-[#161e31] rounded-[2rem] border border-white/5 shadow-inner animate-in slide-in-from-left duration-300">
                                 <input placeholder="Med Name" value={med.name} onChange={e => updateMedication(med.id, 'name', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white text-lg outline-none focus:border-blue-500" />
                                 <input placeholder="Dose (e.g. 500mg)" value={med.dose} onChange={e => updateMedication(med.id, 'dose', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
                                 <input placeholder="Timing (e.g. 1-0-1)" value={med.timing} onChange={e => updateMedication(med.id, 'timing', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
+                                <input placeholder="Days" value={med.days} onChange={e => updateMedication(med.id, 'days', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
                                 <div className="flex justify-between items-center">
                                   <input placeholder="Route" value={med.route} onChange={e => updateMedication(med.id, 'route', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white w-20 outline-none focus:border-blue-500" />
                                   <button type="button" onClick={() => removeMedication(med.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg"><Trash2 size={18} /></button>
@@ -575,32 +572,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Nurse-Specific Render Checklist */}
-            {selectedRole === 'nurse' && (
-              <div className="space-y-10">
-                 <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-8">
-                    <div className="flex items-center gap-6">
-                      <div className="p-4 bg-emerald-600/10 text-emerald-500 rounded-2xl"><ClipboardList size={24} /></div>
-                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Care Delivery</h2>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {SERVICE_GROUPS.flatMap(g => g.options).map(opt => (
-                        <button key={opt.label} type="button" onClick={() => {
-                          setCheckedServices(prev => prev.includes(opt.label) ? prev.filter(s => s !== opt.label) : [...prev, opt.label]);
-                        }} className={`p-6 rounded-[2rem] border transition-all text-left flex items-center gap-4 ${checkedServices.includes(opt.label) ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 shadow-lg' : 'bg-[#161e31] border-white/5 text-slate-400'}`}>
-                           <div className={`p-2 rounded-lg ${checkedServices.includes(opt.label) ? 'bg-emerald-600 text-white' : 'bg-white/5 text-slate-800'}`}><Check size={16} strokeWidth={4} /></div>
-                           <span className="text-sm font-black tracking-tight">{opt.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unlisted Services documentation</label>
-                      <textarea value={otherServices} onChange={e => setOtherServices(e.target.value)} placeholder="Describe unlisted medical care provided..." rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-emerald-500 shadow-inner resize-none" />
-                    </div>
-                 </div>
-              </div>
-            )}
-
             {/* Billing Section (Universal for Hubs) */}
             <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Deployment Fee Category</label>
@@ -613,8 +584,8 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <button type="submit" disabled={isGenerating} className={`w-full ${selectedRole === 'nurse' ? 'bg-emerald-600 shadow-[0_0_50px_rgba(16,185,129,0.3)]' : 'bg-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.3)]'} py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 transition-all border border-white/10`}>
-              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> {selectedRole === 'nurse' ? 'DEPLOY NURSING BILL' : 'DEPLOY CLINICAL REPORT'}</>}
+            <button type="submit" disabled={isGenerating} className={`w-full bg-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.3)] py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 transition-all border border-white/10`}>
+              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> DEPLOY CLINICAL REPORT</>}
             </button>
           </form>
 
@@ -718,6 +689,22 @@ const App: React.FC = () => {
                      </div>
                    ))}
                  </div>
+                 
+                 {/* 30 Days Continuity Instruction Box */}
+                 {currentPatientRecord.treatment && (
+                   <div className="mt-4 p-7 bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] shadow-inner animate-in slide-in-from-bottom-4 duration-500">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><RefreshCcw size={16} /></div>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Continuity Instruction</h4>
+                      </div>
+                      <p className="text-slate-300 font-bold leading-relaxed">{currentPatientRecord.treatment}</p>
+                      {currentPatientRecord.treatment.toLowerCase().includes('continue') && (
+                        <div className="mt-4 flex items-center gap-2 text-emerald-400 font-black text-[10px] uppercase tracking-tighter">
+                          <CheckCircle2 size={12} /> Cycle Duration: 30 Days (Standard Continuity)
+                        </div>
+                      )}
+                   </div>
+                 )}
                </div>
 
                {currentPatientRecord.investigationsAdvised && currentPatientRecord.investigationsAdvised.trim().length > 0 && (

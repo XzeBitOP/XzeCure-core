@@ -1,3 +1,4 @@
+
 export interface ServiceOption {
   label: string;
   value: number;
@@ -15,6 +16,7 @@ export interface Medication {
   dose: string;
   frequency: number; // 1 to 6
   timing: string;
+  days?: string;
   takenToday?: boolean;
 }
 
