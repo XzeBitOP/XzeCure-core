@@ -1,5 +1,8 @@
 
+
 import { Medication, VisitData } from '../types';
+
+const NOTIF_STORAGE_KEY = 'xzecure_scheduled_notifications';
 
 export const notificationService = {
   requestPermission: async (): Promise<boolean> => {
@@ -9,154 +12,119 @@ export const notificationService = {
   },
 
   /**
-   * Resets all existing schedules to prevent duplicate alarms
-   */
-  cancelAllSchedules: () => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_ALL_NOTIFICATIONS' });
-    }
-  },
-
-  /**
-   * Schedules recurring vitals reminders at key clinical check points
+   * Schedules a recurring vitals update reminder at specific hours: 7, 12, 14, 19, 23
    */
   scheduleVitalsReminders: () => {
     const vitalsHours = [7, 12, 14, 19, 23];
     vitalsHours.forEach(hour => {
-      notificationService.scheduleRecurring(
-        '🩺 XzeCure Vitals Check',
-        'Time to log your daily vitals. Your clinical hub and family are waiting for your update.',
-        hour,
-        0,
-        `vitals-reminder-${hour}`
-      );
+      const now = new Date();
+      const scheduledDate = new Date();
+      scheduledDate.setHours(hour, 0, 0, 0);
+
+      // If the time for today has passed, schedule for tomorrow
+      if (scheduledDate.getTime() < now.getTime()) {
+        scheduledDate.setDate(scheduledDate.getDate() + 1);
+      }
+
+      const diff = scheduledDate.getTime() - now.getTime();
+      
+      // We use a simple setTimeout for the first one, 
+      // but in a real PWA you'd want a periodic sync or push.
+      setTimeout(() => {
+        // Fix: Removed 'renotify' property as it is not available in standard NotificationOptions
+        notificationService.showNotification('Vitals Update Reminder', {
+          body: 'It is time to log your vitals and share them with your Clinical Hub.',
+          tag: `vitals-rem-${hour}`
+        });
+        // Re-schedule for next day
+        notificationService.scheduleVitalsReminders();
+      }, diff);
     });
   },
 
   /**
-   * Parses medication data and schedules specific alarms for each medication.
+   * Parses medication timings from a VisitData record and schedules notifications.
    */
   scheduleAllMedicationReminders: (record: VisitData) => {
     if (!record.medications) return;
     
     record.medications.forEach(med => {
-      const timeValue = med.timing.toLowerCase();
-      
-      // Standard clinical shorthand (e.g., 1-0-1)
-      if (timeValue.includes('-')) {
-        const doses = timeValue.split('-');
-        const baseHours = [8, 14, 21]; // Morning, Afternoon, Night
-        doses.forEach((count, index) => {
-          if (parseInt(count) > 0) {
-            notificationService.scheduleRecurring(
-              `💊 Medication: ${med.name}`,
-              `Time for your dose: ${med.dose}. Route: ${med.route}. Frequency: ${med.timing}`,
-              baseHours[index],
-              0,
-              `med-${med.id}-${index}`
-            );
-          }
-        });
-      } else {
-        // Simple time parsing (e.g., 8am, 10:30pm)
-        const isPM = timeValue.includes('pm');
-        const digits = timeValue.match(/\d+/g);
-        if (digits) {
-          let h = parseInt(digits[0]);
-          let m = digits.length > 1 ? parseInt(digits[1]) : 0;
-          if (isPM && h < 12) h += 12;
-          if (!isPM && h === 12) h = 0; // Midnight 12am
-          
-          notificationService.scheduleRecurring(
-            `💊 Medication: ${med.name}`,
-            `It is time for your prescribed dose of ${med.dose} (${med.route}).`,
-            h,
-            m,
-            `med-${med.id}-once`
-          );
-        }
-      }
+      notificationService.scheduleMedicationReminder(record.patientName, med);
     });
   },
 
-  /**
-   * Triggers an immediate notification with interactive buttons for sharing stats.
-   */
-  showVitalsLoggedNotification: (summary: string, doctorPhone: string, relativePhone: string) => {
-    const title = '✅ Health Stats Captured';
-    const body = `Stats: ${summary}. Tap to share with your medical team.`;
-    const tag = 'vitals-logged-action';
+  scheduleMedicationReminder: async (patientName: string, med: Medication) => {
+    if (Notification.permission !== 'granted') return;
 
-    const actions = [
-      { action: 'inform_doctor', title: '👨‍⚕️ Inform Doctor' }
-    ];
-
-    if (relativePhone && relativePhone.trim()) {
-      actions.push({ action: 'inform_relative', title: '🏡 Inform Relative' });
-    }
-
-    const data = {
-      doctorPhone,
-      relativePhone,
-      shareMessage: `XzeCure Daily Health Update:\nStats: ${summary}\nStatus: Captured & Logged.`
-    };
-
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.ready.then(reg => {
-        // Cast to any to bypass standard NotificationOptions limitations for Service Worker extensions
-        reg.showNotification(title, {
-          body,
-          tag,
-          actions,
-          data,
-          icon: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
-          badge: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
-          vibrate: [200, 100, 200],
-          requireInteraction: true
-        } as any);
+    // Parse timing string (e.g., "1-0-1", "8am", "10:30 PM", "9")
+    const timeValue = med.timing.toLowerCase();
+    
+    // Handle standard clinical timing strings like 1-1-1
+    if (timeValue.includes('-')) {
+      const doses = timeValue.split('-');
+      // Morning (8 AM), Afternoon (2 PM), Night (9 PM)
+      const hours = [8, 14, 21];
+      doses.forEach((count, index) => {
+        if (parseInt(count) > 0) {
+          notificationService.scheduleAtHour(patientName, med, hours[index]);
+        }
       });
-    } else {
-      notificationService.showLocalNotification(title, { body, tag });
+      return;
     }
+
+    const isPM = timeValue.includes('pm');
+    const isAM = timeValue.includes('am');
+    const digits = timeValue.match(/\d+/g);
+    
+    if (!digits) return;
+
+    let hours = parseInt(digits[0]);
+    let minutes = digits.length > 1 ? parseInt(digits[1]) : 0;
+
+    if (isPM && hours < 12) hours += 12;
+    if (isAM && hours === 12) hours = 0;
+
+    notificationService.scheduleAtTime(patientName, med, hours, minutes);
   },
 
-  scheduleRecurring: (title: string, body: string, hour: number, minute: number, tag: string) => {
+  scheduleAtHour: (patientName: string, med: Medication, hour: number) => {
+    notificationService.scheduleAtTime(patientName, med, hour, 0);
+  },
+
+  scheduleAtTime: (patientName: string, med: Medication, hours: number, minutes: number) => {
     const now = new Date();
-    const scheduled = new Date();
-    scheduled.setHours(hour, minute, 0, 0);
+    const scheduledDate = new Date();
+    scheduledDate.setHours(hours, minutes, 0, 0);
 
-    // If the time has passed today, schedule for tomorrow
-    if (scheduled.getTime() <= now.getTime()) {
-      scheduled.setDate(scheduled.getDate() + 1);
+    if (scheduledDate.getTime() < now.getTime()) {
+      scheduledDate.setDate(scheduledDate.getDate() + 1);
     }
 
-    const delay = scheduled.getTime() - now.getTime();
+    const diff = scheduledDate.getTime() - now.getTime();
 
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'SCHEDULE_NOTIFICATION',
-        title,
-        body,
-        delay,
-        tag
-      });
-    }
-
-    // Main thread fallback for immediate testing or active tab use
     setTimeout(() => {
-      notificationService.showLocalNotification(title, { body, tag });
-      // Re-schedule next instance
-      notificationService.scheduleRecurring(title, body, hour, minute, tag);
-    }, delay);
+      // Fix: Removed 'renotify' property as it is not available in standard NotificationOptions
+      notificationService.showNotification(`Medication Due: ${med.name}`, {
+        body: `Dose: ${med.dose}\nTiming: ${med.timing}\nRoute: ${med.route}`,
+        tag: `med-rem-${med.id}-${hours}`
+      });
+      // Reschedule for next day
+      notificationService.scheduleAtTime(patientName, med, hours, minutes);
+    }, diff);
   },
 
-  showLocalNotification: (title: string, options: NotificationOptions) => {
+  showNotification: (title: string, options: NotificationOptions) => {
     if (Notification.permission === 'granted') {
-      new Notification(title, {
+      const notif = new Notification(title, {
         ...options,
         icon: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
-        badge: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR'
+        badge: 'https://lh3.googleusercontent.com/d/1GBJTXDNAbVoY77EACU6exx61PGkpnPWR',
       });
+      
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
     }
   }
 };
