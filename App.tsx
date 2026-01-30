@@ -1,15 +1,17 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   User, Users, Stethoscope, CheckCircle2, XCircle, Loader2, 
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings
 } from 'lucide-react';
 import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem } from './types';
 import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
+import { notificationService } from './services/notificationService';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Configure pdfjs worker
@@ -31,6 +33,8 @@ const App: React.FC = () => {
   const [reminders, setReminders] = useState<Record<string, boolean>>({});
   const [showVitalsHistory, setShowVitalsHistory] = useState(false);
   const [showVitalsForm, setShowVitalsForm] = useState(false);
+  const [showPatientSettings, setShowPatientSettings] = useState(false);
+  const [relativeNumber, setRelativeNumber] = useState(localStorage.getItem('xzecure_relative_number') || '');
   const [vitalsHistory, setVitalsHistory] = useState<DailyVital[]>([]);
   const [vitalsFormData, setVitalsFormData] = useState<Omit<DailyVital, 'id' | 'timestamp'>>({
     bp: '', temp: '', spo2: '', hr: '', rbs: '', weight: '', waist: ''
@@ -61,6 +65,20 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
   const icdRef = useRef<HTMLDivElement>(null);
+
+  // Reminders initialization
+  useEffect(() => {
+    if (selectedRole === 'patient') {
+      notificationService.requestPermission().then(granted => {
+        if (granted) {
+          notificationService.scheduleVitalsReminders();
+          if (currentPatientRecord) {
+            notificationService.scheduleAllMedicationReminders(currentPatientRecord);
+          }
+        }
+      });
+    }
+  }, [selectedRole, currentPatientRecord]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
@@ -102,6 +120,18 @@ const App: React.FC = () => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
+
+  const handleReset = () => {
+    if (window.confirm('Clear all fields for a new patient entry? This will permanently wipe current unsaved data.')) {
+      setFormData(initialFormState);
+      setCheckedServices([]);
+      setOtherServices('');
+      setPdfBlob(null);
+      setIcdSuggestions([]);
+      storageService.saveFormDraft(initialFormState);
+      showToast('Form cleared for new patient', 'info');
+    }
+  };
 
   const parsePdfMetadata = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
@@ -193,11 +223,26 @@ const App: React.FC = () => {
       const stamp = new Date().toLocaleString('en-IN');
       const vitalsSummary = `BP:${vitalsFormData.bp || '--'}, Temp:${vitalsFormData.temp || '--'}°F, SpO2:${vitalsFormData.spo2 || '--'}%, HR:${vitalsFormData.hr || '--'}bpm, RBS:${vitalsFormData.rbs || '--'}mg/dL, Weight:${vitalsFormData.weight || '--'}kg`;
       const msg = `Hi, I'm ${currentPatientRecord.patientName} under your treatment for ${currentPatientRecord.provisionalDiagnosis}. My vitals are ${vitalsSummary} (${stamp}).`;
+      
+      // Share with Doctor
       window.open(`https://wa.me/918200095781?text=${encodeURIComponent(msg)}`, "_blank");
+      
+      // Share with Relative if configured
+      if (relativeNumber.trim()) {
+        const relativeMsg = `Alert: Daily health update for ${currentPatientRecord.patientName}. Current stats: ${vitalsSummary} at ${stamp}.`;
+        setTimeout(() => {
+          window.open(`https://wa.me/${relativeNumber.trim()}?text=${encodeURIComponent(relativeMsg)}`, "_blank");
+        }, 1000);
+      }
     }
 
     setVitalsFormData({ bp: '', temp: '', spo2: '', hr: '', rbs: '', weight: '', waist: '' });
     setShowVitalsForm(false);
+  };
+
+  const handleSaveRelativeNumber = (val: string) => {
+    setRelativeNumber(val);
+    localStorage.setItem('xzecure_relative_number', val);
   };
 
   const handlePinInput = (value: string) => {
@@ -378,6 +423,10 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-3">
+               <button onClick={handleReset} className="p-5 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
+                  <RotateCcw size={24} />
+                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Hub</span>
+               </button>
                <label className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
                   <FileUp size={24} />
                   <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Restore Report</span>
@@ -621,6 +670,7 @@ const App: React.FC = () => {
               <div><h2 className="text-2xl font-black text-white tracking-tight">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Hub</p></div>
             </div>
             <div className="flex gap-2">
+              <button onClick={() => setShowPatientSettings(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><Settings size={20} /></button>
               <button onClick={() => setShowVitalsHistory(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><History size={20} /></button>
               <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-4 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
             </div>
@@ -735,6 +785,45 @@ const App: React.FC = () => {
              <button onClick={() => setShowEmergencyDialog(true)} className="w-24 h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 animate-pulse">
                 <Siren className="w-12 h-12" />
               </button>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Settings Modal */}
+      {showPatientSettings && (
+        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
+          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-md space-y-10 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
+                <Settings className="text-blue-500" /> Patient Settings
+              </h3>
+              <button onClick={() => setShowPatientSettings(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 hover:text-white"><XCircle size={28} /></button>
+            </div>
+            
+            <div className="space-y-6">
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Relative Contact Number</label>
+                 <input 
+                   type="text" 
+                   value={relativeNumber} 
+                   onChange={e => handleSaveRelativeNumber(e.target.value)} 
+                   placeholder="e.g. 91xxxxxxxxxx"
+                   className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black outline-none focus:border-blue-500" 
+                 />
+                 <p className="text-[10px] text-slate-600 font-bold ml-4">Include country code (e.g., 91 for India)</p>
+               </div>
+               
+               <div className="bg-blue-600/10 p-6 rounded-[2rem] border border-blue-500/20">
+                 <p className="text-xs text-blue-400 font-bold leading-relaxed">Vitals logs will be shared automatically with both your Doctor and this relative via WhatsApp when you save them.</p>
+               </div>
+            </div>
+
+            <button 
+              onClick={() => setShowPatientSettings(false)} 
+              className="w-full bg-blue-600 text-white py-8 rounded-full font-black text-xl active:scale-95 transition-all shadow-xl uppercase tracking-widest"
+            >
+               DONE
+            </button>
           </div>
         </div>
       )}
