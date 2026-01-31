@@ -56,7 +56,8 @@ const App: React.FC = () => {
     medications: [], medicineAdvice: [],
     followup: 'No', followupDate: '', whatsappNumber: '',
     serviceCharge: 0, quantity: 1, pdfColor: 'white', serviceName: 'Standard Consultation',
-    photos: []
+    photos: [],
+    treatingDoctor: ''
   };
 
   const [formData, setFormData] = useState<VisitData>(initialFormState);
@@ -423,16 +424,16 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-3">
-               <button onClick={handleReset} className="p-5 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
+               <button onClick={handleReset} className="p-3 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
                   <RotateCcw size={24} />
                   <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Hub</span>
                </button>
-               <label className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
+               <label className="p-3 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
                   <FileUp size={24} />
                   <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Restore Report</span>
                   <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
                </label>
-               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-5 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-3 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
             </div>
           </header>
 
@@ -483,6 +484,11 @@ const App: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contact</label>
                   <input type="text" value={formData.contactNumber} onChange={e => setFormData({...formData, contactNumber: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
                 </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Referral / Treating Doctor Name</label>
+                <input type="text" value={formData.treatingDoctor} onChange={e => setFormData({...formData, treatingDoctor: e.target.value})} placeholder="Enter name of referring or primary treating physician" className="w-full bg-[#161e31] border border-blue-500/10 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none shadow-inner" />
               </div>
             </div>
 
@@ -831,7 +837,7 @@ const App: React.FC = () => {
       {/* Daily Vitals Entry Form Modal */}
       {showVitalsForm && (
         <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300 overflow-y-auto">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-xl space-y-10 my-auto shadow-2xl">
+          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-xl space-y-10 my-auto shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
                 <Activity className="text-emerald-500" /> {editingVitalId ? 'Edit Vitals' : 'Daily Vitals'}
