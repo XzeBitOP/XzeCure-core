@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   User, Users, Stethoscope, CheckCircle2, XCircle, Loader2, 
@@ -436,16 +435,16 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-2">
-               <button onClick={handleReset} title="Reset Form" className="p-2.5 bg-rose-950/30 border border-rose-500/20 rounded-xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
-                  <RotateCcw size={20} />
-                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Hub</span>
+               <button onClick={handleReset} title="Reset Form" className="p-2 bg-rose-950/30 border border-rose-500/20 rounded-xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
+                  <RotateCcw size={18} />
+                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Form</span>
                </button>
-               <label title="Restore Report" className="p-2.5 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
-                  <FileUp size={20} />
-                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Restore Report</span>
+               <label title="Restore Report" className="p-2 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
+                  <FileUp size={18} />
+                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Import Hub</span>
                   <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
                </label>
-               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-2.5 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={20} /></button>
+               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-2 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={18} /></button>
             </div>
           </header>
 
@@ -523,9 +522,8 @@ const App: React.FC = () => {
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Medical History</label>
                           <textarea value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
                         </div>
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Surgical History</label>
-                          <textarea value={formData.surgicalHistory} onChange={e => setFormData({...formData, surgicalHistory: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                        <div style={{ display: 'none' }}> {/* surgicalHistory hidden as per current workflow logic or minimal usage */}
+                          <textarea value={formData.surgicalHistory} onChange={e => setFormData({...formData, surgicalHistory: e.target.value})} />
                         </div>
                       </div>
                    </div>
@@ -621,7 +619,7 @@ const App: React.FC = () => {
                       <div className="p-4 bg-purple-600/10 text-purple-500 rounded-2xl"><CalendarPlus size={24} /></div>
                       <div>
                         <h2 className="text-2xl font-black text-white uppercase tracking-tight">Follow-up Schedule</h2>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Deploy next clinical node</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Next clinical encounter</p>
                       </div>
                    </div>
                    <div className="flex flex-col sm:flex-row items-center gap-8">
@@ -641,7 +639,7 @@ const App: React.FC = () => {
 
             {/* Billing Section (Universal for Hubs) */}
             <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Deployment Fee Category</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Fee Category</label>
               <div className="relative">
                 <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-blue-500">
                     <option value="">-- Select Bill Category --</option>
@@ -652,7 +650,7 @@ const App: React.FC = () => {
             </div>
 
             <button type="submit" disabled={isGenerating} className={`w-full bg-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.3)] py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 transition-all border border-white/10`}>
-              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> DEPLOY CLINICAL REPORT</>}
+              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> SAVE CLINICAL REPORT</>}
             </button>
           </form>
 
@@ -671,7 +669,7 @@ const App: React.FC = () => {
                       <CreditCard size={32} /> PAY ₹{formData.serviceCharge}
                     </button>
                   </div>
-                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden border-[6px] sm:border-[12px] border-slate-950 h-[70vh] sm:h-[600px] w-full">
+                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden border-[6px] sm:border-[12px] border-slate-950 h-[80vh] w-full">
                     <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full border-none" />
                   </div>
                </div>
@@ -698,7 +696,7 @@ const App: React.FC = () => {
             <div className="space-y-12 animate-in fade-in duration-500">
                <div className="bg-[#101726] border-4 border-dashed border-white/10 p-10 sm:p-16 rounded-[4rem] text-center space-y-12 shadow-2xl">
                   <FileUp className="w-24 h-24 text-blue-500 mx-auto animate-bounce" />
-                  <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Connect Health Node</h3><p className="text-slate-500 font-medium text-xl">Upload clinic report to sync hub.</p></div>
+                  <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Connect Hub</h3><p className="text-slate-500 font-medium text-xl">Upload clinic report to sync hub.</p></div>
                   <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-lg uppercase tracking-widest">CHOOSE CLINIC PDF<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
                </div>
                <div className="px-4">
@@ -758,12 +756,12 @@ const App: React.FC = () => {
                    ))}
                  </div>
                  
-                 {/* 30 Days Continuity Instruction Box */}
+                 {/* Instruction Box */}
                  {currentPatientRecord.treatment && (
                    <div className="mt-4 p-7 bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] shadow-inner animate-in slide-in-from-bottom-4 duration-500">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><RefreshCcw size={16} /></div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Continuity Instruction</h4>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Instruction</h4>
                       </div>
                       <p className="text-slate-300 font-bold leading-relaxed">{currentPatientRecord.treatment}</p>
                       {currentPatientRecord.treatment.toLowerCase().includes('continue') && (
@@ -781,7 +779,7 @@ const App: React.FC = () => {
                        <div className="w-16 h-16 bg-amber-500 rounded-[2rem] flex items-center justify-center text-white"><TestTube size={32} /></div>
                        <div>
                           <h3 className="text-2xl font-black text-white uppercase tracking-tight">Prescribed Investigations</h3>
-                          <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Connect with Partner Labs</p>
+                          <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Partner Lab Connect</p>
                        </div>
                     </div>
                     <div className="p-7 bg-slate-900/50 rounded-[2rem] border border-white/5 shadow-inner">
@@ -825,7 +823,7 @@ const App: React.FC = () => {
                    type="text" 
                    value={relativeNumber} 
                    onChange={e => handleSaveRelativeNumber(e.target.value)} 
-                   placeholder="e.g. 91xxxxxxxxxx"
+                   placeholder="91xxxxxxxxxx"
                    className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black outline-none focus:border-blue-500" 
                  />
                  <p className="text-[10px] text-slate-600 font-bold ml-4">Include country code (e.g., 91 for India)</p>
@@ -992,7 +990,7 @@ const App: React.FC = () => {
             </div>
             <div className="text-center space-y-3">
               <p className="text-emerald-400 font-black text-5xl tracking-tighter">₹{formData.serviceCharge}</p>
-              <p className="text-slate-500 font-bold text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical node</p>
+              <p className="text-slate-500 font-bold text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical session</p>
             </div>
             <button onClick={() => { window.location.href = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${formData.serviceCharge}&cu=INR`; }} className="w-full bg-emerald-600 text-white py-9 rounded-full font-black text-2xl shadow-lg uppercase tracking-widest">Open UPI App</button>
           </div>

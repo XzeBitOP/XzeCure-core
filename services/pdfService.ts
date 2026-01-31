@@ -1,4 +1,3 @@
-
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { VisitData } from '../types';
@@ -29,7 +28,7 @@ const getImageDimensions = (file: string): Promise<{ w: number, h: number }> => 
 const drawFooter = (pdf: jsPDF) => {
   const pageHeight = 297;
   const pageWidth = 210;
-  const startY = pageHeight - 18;
+  const startY = pageHeight - 15;
 
   pdf.setFontSize(8.5);
   pdf.setTextColor(30, 41, 59); // slate-800
@@ -38,11 +37,6 @@ const drawFooter = (pdf: jsPDF) => {
   pdf.text("Your helping hands in emergency. Ahmedabad Mediclaim valid HomeCare Provider.", pageWidth / 2, startY, { align: 'center' });
   pdf.text("Contact: +91 63551 37969 | +91 8200095781", pageWidth / 2, startY + 4, { align: 'center' });
   pdf.text("Visit us at XzeCure.co.in", pageWidth / 2, startY + 8, { align: 'center' });
-
-  pdf.setFontSize(8);
-  pdf.setTextColor(220, 38, 38); // red-600
-  pdf.setFont("helvetica", "normal");
-  pdf.text("This report is for digital clinical record and not for medico-legal purposes", pageWidth / 2, startY + 12, { align: 'center' });
 };
 
 export const generateVisitPdf = async (
@@ -100,7 +94,9 @@ export const generateVisitPdf = async (
               <span style="color: #cbd5e1;">|</span>
               <span>MOB: ${visitData.contactNumber}</span>
             </div>
-            ${visitData.treatingDoctor ? `<div style="margin-top: 8px; color: #1e3a8a; font-size: 10pt; text-transform: uppercase; border-top: 1px dashed #cbd5e1; padding-top: 4px;">Treating/Referral Doctor: ${visitData.treatingDoctor}</div>` : ''}
+            <div style="margin-top: 8px; color: #1e3a8a; font-size: 10pt; font-weight: 800; text-transform: uppercase; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+              Treating/Referral Doctor: ${visitData.treatingDoctor || 'Not Specified'}
+            </div>
           </div>
           ${visitData.address ? `<p style="margin: 8px 0 0 0; font-size: 9pt; color: #64748b; line-height: 1.4;">${visitData.address}</p>` : ''}
         </div>
@@ -217,7 +213,7 @@ export const generateVisitPdf = async (
         </div>
         <div style="text-align: right;">
           <div style="background: #10b981; color: #ffffff; padding: 15px 30px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
-            <p style="margin: 0; font-size: 8pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">Service Fee</p>
+            <p style="margin: 0; font-size: 8pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">Service Charge</p>
             <p style="margin: 0; font-size: 22pt; font-weight: 900;">₹${visitData.serviceCharge}</p>
           </div>
         </div>
@@ -229,7 +225,7 @@ export const generateVisitPdf = async (
   
   try {
     const canvas = await html2canvas(container, { 
-      scale: 2, // Balanced for mobile performance and visual clarity
+      scale: 2, 
       useCORS: true, 
       backgroundColor: '#ffffff',
       logging: false
