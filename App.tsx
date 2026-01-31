@@ -5,7 +5,7 @@ import {
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video
 } from 'lucide-react';
 import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem } from './types';
@@ -336,6 +336,18 @@ const App: React.FC = () => {
     window.open(`https://wa.me/918200095781?text=${encodeURIComponent(actionText)}`, "_blank");
   };
 
+  const handleVideoConsultation = () => {
+    let baseMsg = "I would like to request a urgent video consultation";
+    if (currentPatientRecord) {
+      baseMsg += ` for patient ${currentPatientRecord.patientName}. Diagnosis: ${currentPatientRecord.provisionalDiagnosis || 'Unknown'}. [Note: Please attach your XzeCure PDF to this chat]`;
+    } else if (formData.patientName) {
+      baseMsg += ` for patient ${formData.patientName}.`;
+    }
+    
+    setShowEmergencyDialog(false);
+    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(baseMsg)}`, "_blank");
+  };
+
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = parseInt(e.target.value);
     if (isNaN(value)) return;
@@ -423,17 +435,17 @@ const App: React.FC = () => {
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
-               <button onClick={handleReset} className="p-3 bg-rose-950/30 border border-rose-500/20 rounded-2xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
-                  <RotateCcw size={24} />
+            <div className="flex gap-2">
+               <button onClick={handleReset} title="Reset Form" className="p-2.5 bg-rose-950/30 border border-rose-500/20 rounded-xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
+                  <RotateCcw size={20} />
                   <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Hub</span>
                </button>
-               <label className="p-3 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
-                  <FileUp size={24} />
+               <label title="Restore Report" className="p-2.5 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
+                  <FileUp size={20} />
                   <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Restore Report</span>
                   <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
                </label>
-               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-3 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-2.5 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={20} /></button>
             </div>
           </header>
 
@@ -645,22 +657,22 @@ const App: React.FC = () => {
           </form>
 
           {pdfBlob && (
-            <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in zoom-in duration-500 overflow-y-auto">
-               <div className="w-full max-w-5xl bg-[#101726] rounded-[4rem] border border-white/10 p-12 space-y-10 shadow-2xl my-auto">
+            <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-8 animate-in zoom-in duration-500 overflow-y-auto">
+               <div className="w-full max-w-5xl bg-[#101726] rounded-[2.5rem] sm:rounded-[4rem] border border-white/10 p-6 sm:p-12 space-y-6 sm:space-y-10 shadow-2xl my-auto">
                   <div className="flex justify-between items-center">
-                     <h2 className="text-4xl font-black text-white tracking-tighter">Health Node Captured</h2>
-                     <button onClick={() => setPdfBlob(null)} className="p-6 bg-slate-800 rounded-3xl text-slate-400 active:scale-90 shadow-xl"><XCircle size={32} /></button>
+                     <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter">Report Captured</h2>
+                     <button onClick={() => setPdfBlob(null)} className="p-4 sm:p-6 bg-slate-800 rounded-2xl sm:rounded-3xl text-slate-400 active:scale-90 shadow-xl"><XCircle size={24} /></button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-10 bg-blue-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-500">
-                      <FileDown size={48} /> SAVE HUB PDF
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
+                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-6 sm:p-10 bg-blue-600 text-white rounded-full font-black text-xl sm:text-2xl flex items-center justify-center gap-4 sm:gap-6 shadow-2xl hover:bg-blue-500">
+                      <FileDown size={32} /> SAVE REPORT
                     </button>
-                    <button onClick={() => setShowPaymentQR(true)} className="p-10 bg-emerald-600 text-white rounded-full font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-emerald-500">
-                      <CreditCard size={48} /> PAY ₹{formData.serviceCharge}
+                    <button onClick={() => setShowPaymentQR(true)} className="p-6 sm:p-10 bg-emerald-600 text-white rounded-full font-black text-xl sm:text-2xl flex items-center justify-center gap-4 sm:gap-6 shadow-2xl hover:bg-emerald-500">
+                      <CreditCard size={32} /> PAY ₹{formData.serviceCharge}
                     </button>
                   </div>
-                  <div className="bg-white rounded-[2rem] overflow-hidden border-[12px] border-slate-950 h-[600px]">
-                    <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full" />
+                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden border-[6px] sm:border-[12px] border-slate-950 h-[70vh] sm:h-[600px] w-full">
+                    <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full border-none" />
                   </div>
                </div>
             </div>
@@ -788,7 +800,7 @@ const App: React.FC = () => {
           )}
           
           <div className="fixed bottom-10 right-8 z-[60]">
-             <button onClick={() => setShowEmergencyDialog(true)} className="w-24 h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 animate-pulse">
+             <button onClick={() => setShowEmergencyDialog(true)} className="w-24 h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 animate-pulse border-4 border-white/20">
                 <Siren className="w-12 h-12" />
               </button>
           </div>
@@ -919,18 +931,51 @@ const App: React.FC = () => {
       )}
 
       {showEmergencyDialog && (
-        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in">
-          <div className="bg-slate-900 border border-white/10 p-12 rounded-[5rem] w-full max-w-md space-y-12 shadow-2xl">
-            <Siren className="w-24 h-24 text-rose-500 mx-auto animate-bounce" />
-            <div className="text-center space-y-4">
+        <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-[#0f172a] border-2 border-white/10 p-10 rounded-[5rem] w-full max-w-md space-y-10 shadow-2xl relative overflow-hidden">
+            <div className="text-center space-y-6 relative z-10">
+              <div className="w-24 h-24 bg-rose-600/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <Siren className="w-12 h-12 text-rose-500" />
+              </div>
               <h3 className="text-4xl font-black text-white uppercase tracking-tighter">SOS Alert</h3>
               <p className="text-slate-500 font-bold text-lg">Deploy emergency medical support?</p>
             </div>
-            <div className="grid gap-4">
-              <button onClick={() => handleEmergencyAction('ambulance')} className="w-full p-9 bg-rose-600 text-white rounded-full font-black uppercase text-2xl shadow-lg">Ambulance SOS</button>
-              <button onClick={() => handleEmergencyAction('doctor')} className="w-full p-9 bg-blue-600 text-white rounded-full font-black uppercase text-2xl shadow-lg">Urgent Doctor</button>
-              <button onClick={() => setShowEmergencyDialog(false)} className="w-full p-4 text-slate-600 font-black uppercase text-xs tracking-widest">Cancel</button>
+
+            <div className="grid gap-4 relative z-10">
+              <button 
+                onClick={handleVideoConsultation} 
+                className="w-full p-8 bg-blue-600/10 border-2 border-blue-500/30 text-white rounded-full font-black uppercase text-xl active:scale-95 transition-all shadow-xl flex flex-col items-center justify-center group"
+              >
+                 <div className="flex items-center gap-3">
+                    <Video size={24} className="text-blue-400" />
+                    <span>Video Consultation</span>
+                 </div>
+                 <span className="text-xs font-black text-blue-500/70 tracking-widest mt-1 opacity-100 group-hover:text-blue-400 transition-colors">Fee: ₹499</span>
+              </button>
+
+              <button 
+                onClick={() => handleEmergencyAction('ambulance')} 
+                className="w-full p-9 bg-rose-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 transition-all shadow-2xl border border-rose-400/20"
+              >
+                Ambulance SOS
+              </button>
+              
+              <button 
+                onClick={() => handleEmergencyAction('doctor')} 
+                className="w-full p-9 bg-blue-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 transition-all shadow-2xl border border-blue-400/20"
+              >
+                Urgent Doctor
+              </button>
+              
+              <button 
+                onClick={() => setShowEmergencyDialog(false)} 
+                className="w-full p-4 text-slate-600 font-black uppercase text-xs tracking-widest hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
             </div>
+
+            <div className="absolute top-0 left-0 w-full h-full bg-rose-600/5 pointer-events-none animate-pulse"></div>
           </div>
         </div>
       )}
