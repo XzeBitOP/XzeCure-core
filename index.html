@@ -3,9 +3,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>XzeCure - Patient Visit Form</title>
     <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a0f1d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
 <script type="importmap">
 {
@@ -30,9 +33,9 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('sw.js').then(reg => {
-            console.log('SW registered:', reg);
+            console.log('XzeCure Node Registered. Background download initialized.');
           }).catch(err => {
-            console.log('SW registration failed:', err);
+            console.log('XzeCure Offline Sync failed:', err);
           });
         });
       }
