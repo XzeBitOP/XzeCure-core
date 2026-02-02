@@ -1,6 +1,10 @@
+
 import { ServiceGroup } from './types';
 
 export const SECRET_PIN = '472892';
+
+// PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE AFTER DEPLOYING
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_URL/exec';
 
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {
@@ -54,7 +58,6 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
   }
 ];
 
-// Curated Common ICD-10 Codes
 export const COMMON_ICD_CODES = [
   { code: 'A09.9', description: 'Gastroenteritis and colitis of infectious origin' },
   { code: 'B34.9', description: 'Viral infection, unspecified' },

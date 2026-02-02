@@ -4,13 +4,14 @@ import {
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video, Cloud
 } from 'lucide-react';
-import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES } from './constants';
-import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem } from './types';
+import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES, APPS_SCRIPT_URL } from './constants';
+import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem, SavedVisit } from './types';
 import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
 import { notificationService } from './services/notificationService';
+import { googleSheetService } from './services/googleSheetService';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Configure pdfjs worker
@@ -23,7 +24,13 @@ const App: React.FC = () => {
   const [pin, setPin] = useState('');
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   
+  // Patient Identity State (Manual)
+  const [patientManualName, setPatientManualName] = useState(localStorage.getItem('xzecure_manual_name') || '');
+  const [patientManualPhone, setPatientManualPhone] = useState(localStorage.getItem('xzecure_manual_phone') || '');
+
   // Patient Portal State
   const [currentPatientRecord, setCurrentPatientRecord] = useState<VisitData | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -41,8 +48,8 @@ const App: React.FC = () => {
   const [editingVitalId, setEditingVitalId] = useState<string | null>(null);
   
   // Doctor Hub State
-  const [checkedServices, setCheckedServices] = useState<string[]>([]);
-  const [otherServices, setOtherServices] = useState('');
+  const [showVisitHistory, setShowVisitHistory] = useState(false);
+  const [savedVisits, setSavedVisits] = useState<SavedVisit[]>([]);
 
   // Doctor Form State
   const initialFormState: VisitData = {
@@ -66,6 +73,15 @@ const App: React.FC = () => {
   const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
   const icdRef = useRef<HTMLDivElement>(null);
 
+  // Sync manual patient info to storage
+  useEffect(() => {
+    localStorage.setItem('xzecure_manual_name', patientManualName);
+  }, [patientManualName]);
+
+  useEffect(() => {
+    localStorage.setItem('xzecure_manual_phone', patientManualPhone);
+  }, [patientManualPhone]);
+
   // Reminders initialization
   useEffect(() => {
     if (selectedRole === 'patient') {
@@ -80,11 +96,32 @@ const App: React.FC = () => {
     }
   }, [selectedRole, currentPatientRecord]);
 
+  // Geolocation Request on Start Screen
+  const fetchLocation = useCallback(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          console.log("Location locked.");
+        },
+        (err) => console.error("Location error:", err),
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLocked) {
+      fetchLocation();
+    }
+  }, [isLocked, fetchLocation]);
+
   useEffect(() => {
     const timer = setTimeout(() => setIsBooting(false), 3000);
     const draft = storageService.getFormDraft();
     if (draft) setFormData(draft);
     setVitalsHistory(storageService.getDailyVitals());
+    setSavedVisits(storageService.getVisits());
 
     const handleClickOutside = (event: MouseEvent) => {
       if (icdRef.current && !icdRef.current.contains(event.target as Node)) {
@@ -121,15 +158,34 @@ const App: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // Helper to append metadata (Name, Contact, Location) to messages
+  const appendMetadata = useCallback((msg: string) => {
+    const pName = currentPatientRecord?.patientName || patientManualName || 'Not Provided';
+    const contact = currentPatientRecord?.contactNumber || patientManualPhone || 'Not Provided';
+    const locStr = userLocation 
+      ? `\nLocation: https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}`
+      : '\nLocation: Permission Denied';
+    return `${msg}\n\nPatient: ${pName}\nContact: ${contact}${locStr}`;
+  }, [currentPatientRecord, patientManualName, patientManualPhone, userLocation, formData]);
+
   const handleReset = () => {
     if (window.confirm('Clear all fields for a new patient entry? This will permanently wipe current unsaved data.')) {
       setFormData(initialFormState);
-      setCheckedServices([]);
-      setOtherServices('');
       setPdfBlob(null);
       setIcdSuggestions([]);
       storageService.saveFormDraft(initialFormState);
       showToast('Form cleared for new patient', 'info');
+    }
+  };
+
+  const handleLoadVisit = (visit: SavedVisit) => {
+    if (visit.fullData) {
+      setFormData({
+        ...visit.fullData,
+        visitId: '' // Clear visit ID for new follow-up
+      });
+      setShowVisitHistory(false);
+      showToast(`Loaded record for ${visit.name}`, 'success');
     }
   };
 
@@ -152,16 +208,18 @@ const App: React.FC = () => {
     try {
       const visitData = await parsePdfMetadata(file);
       if (selectedRole === 'doctor') {
-        // Restore for follow-up
         setFormData({
           ...visitData,
-          visitId: '', // Generate new ID on save
-          serviceCharge: 999, // Reset to standard visit fee
-          staffName: formData.staffName || visitData.staffName // Prefer current user name
+          visitId: '', 
+          serviceCharge: 999, 
+          staffName: formData.staffName || visitData.staffName
         });
         showToast('Patient History Restored for Follow-up', 'success');
       } else {
         setCurrentPatientRecord(visitData);
+        // Automatically extract and populate manual identity fields from PDF metadata
+        if (visitData.patientName) setPatientManualName(visitData.patientName);
+        if (visitData.contactNumber) setPatientManualPhone(visitData.contactNumber);
         showToast('XzeCure Hub Synced', 'success');
       }
     } catch (err) {
@@ -174,16 +232,15 @@ const App: React.FC = () => {
   const handlePartnerLabConnect = () => {
     if (!currentPatientRecord) return;
     showToast('Connecting Lab...', 'info');
-    const baseMsg = `Hello, this is an automated request from XzeCure. Patient ${currentPatientRecord.patientName} requires a home visit for: ${currentPatientRecord.investigationsAdvised}. Contact: ${currentPatientRecord.contactNumber}`;
-    const message = encodeURIComponent(baseMsg);
-    window.open(`https://wa.me/919081736424?text=${message}`, "_blank");
+    const baseMsg = `Hello, this is an automated request from XzeCure. Patient requires a home visit for: ${currentPatientRecord.investigationsAdvised}.`;
+    const finalMsg = appendMetadata(baseMsg);
+    window.open(`https://wa.me/919081736424?text=${encodeURIComponent(finalMsg)}`, "_blank");
   };
 
   const handleMedicineOrder = () => {
     if (!currentPatientRecord) return;
     showToast('Pharmacy Link...', 'info');
     
-    // Prepare meds list including "Continue" (30 days) logic
     const regularMeds = currentPatientRecord.medications.map(m => {
       const duration = m.days ? `${m.days} days` : '30 days (Continue)';
       return `${m.name} [${m.timing}] for ${duration}`;
@@ -197,15 +254,14 @@ const App: React.FC = () => {
     const combinedList = [...regularMeds, ...adviceMeds].join(', ');
     const treatmentSuffix = currentPatientRecord.treatment ? `\nTreatment Note: ${currentPatientRecord.treatment}` : '';
     
-    const messageText = `Hi I'm patient ${currentPatientRecord.patientName} from XzeCure. I need the following medicines (including 30-day continuation stock): ${combinedList}.${treatmentSuffix}\n\nThis is an automated order request. Please confirm availability and delivery slot.`;
-    
-    const message = encodeURIComponent(messageText);
-    window.open(`https://wa.me/917016583135?text=${message}`, "_blank");
+    const baseMsg = `Hi, I need the following medicines from XzeCure: ${combinedList}.${treatmentSuffix}\n\nPlease confirm availability and delivery slot.`;
+    const finalMsg = appendMetadata(baseMsg);
+    window.open(`https://wa.me/917016583135?text=${encodeURIComponent(finalMsg)}`, "_blank");
   };
 
-  const handleSaveVitals = () => {
-    if (!currentPatientRecord) {
-      showToast('Import Patient PDF first', 'error');
+  const handleSaveVitals = async () => {
+    if (!currentPatientRecord && !patientManualName) {
+      showToast('Please enter your name or attach report first', 'error');
       return;
     }
 
@@ -219,17 +275,24 @@ const App: React.FC = () => {
       setVitalsHistory(storageService.getDailyVitals());
       showToast('Vitals Saved', 'success');
 
-      // WhatsApp Auto-Share
+      // Sync to Google Sheet (Backend)
+      setIsSyncing(true);
+      googleSheetService.syncDailyVitals({
+        patientName: patientManualName || currentPatientRecord?.patientName,
+        phone: patientManualPhone || currentPatientRecord?.contactNumber,
+        ...vitalsFormData,
+        location: userLocation ? `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}` : 'N/A'
+      }).finally(() => setIsSyncing(false));
+
       const stamp = new Date().toLocaleString('en-IN');
       const vitalsSummary = `BP:${vitalsFormData.bp || '--'}, Temp:${vitalsFormData.temp || '--'}°F, SpO2:${vitalsFormData.spo2 || '--'}%, HR:${vitalsFormData.hr || '--'}bpm, RBS:${vitalsFormData.rbs || '--'}mg/dL, Weight:${vitalsFormData.weight || '--'}kg`;
-      const msg = `Hi, I'm ${currentPatientRecord.patientName} under your treatment for ${currentPatientRecord.provisionalDiagnosis}. My vitals are ${vitalsSummary} (${stamp}).`;
+      const baseMsg = `My vitals update: ${vitalsSummary} (${stamp}). Diagnosis: ${currentPatientRecord?.provisionalDiagnosis || 'Monitoring'}.`;
+      const finalMsg = appendMetadata(baseMsg);
       
-      // Share with Doctor
-      window.open(`https://wa.me/918200095781?text=${encodeURIComponent(msg)}`, "_blank");
+      window.open(`https://wa.me/918200095781?text=${encodeURIComponent(finalMsg)}`, "_blank");
       
-      // Share with Relative if configured
       if (relativeNumber.trim()) {
-        const relativeMsg = `Alert: Daily health update for ${currentPatientRecord.patientName}. Current stats: ${vitalsSummary} at ${stamp}.`;
+        const relativeMsg = appendMetadata(`Alert: Daily health update. Vitals: ${vitalsSummary} at ${stamp}.`);
         setTimeout(() => {
           window.open(`https://wa.me/${relativeNumber.trim()}?text=${encodeURIComponent(relativeMsg)}`, "_blank");
         }, 1000);
@@ -320,8 +383,23 @@ const App: React.FC = () => {
       
       const blob = await generateVisitPdf(finalData, finalData.photos, DEFAULT_LOGO);
       setPdfBlob(blob);
+      
+      // Save locally
       storageService.saveVisit({ visitId: vId, name: finalData.patientName, date: new Date().toISOString(), staff: finalData.staffName, fullData: finalData });
-      showToast('Report Captured', 'success');
+      setSavedVisits(storageService.getVisits());
+
+      // Sync to Google Sheet (Backend)
+      setIsSyncing(true);
+      googleSheetService.syncClinicalReport({
+        visitId: vId,
+        patientName: finalData.patientName,
+        contactNumber: finalData.contactNumber,
+        diagnosis: finalData.provisionalDiagnosis,
+        staffName: finalData.staffName,
+        location: userLocation ? `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}` : 'N/A'
+      }).finally(() => setIsSyncing(false));
+
+      showToast('Report Captured & Synced', 'success');
     } catch (err) {
       showToast('PDF Engine Error', 'error');
     } finally {
@@ -330,21 +408,20 @@ const App: React.FC = () => {
   };
 
   const handleEmergencyAction = (type: 'ambulance' | 'doctor') => {
-    const actionText = type === 'ambulance' ? '🚨 SOS: EMERGENCY AMBULANCE REQUIRED' : '🩺 SOS: URGENT DOCTOR REQUIRED';
+    const baseActionText = type === 'ambulance' ? '🚨 SOS: EMERGENCY AMBULANCE REQUIRED' : '🩺 SOS: URGENT DOCTOR REQUIRED';
+    const finalMsg = appendMetadata(baseActionText);
     setShowEmergencyDialog(false);
-    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(actionText)}`, "_blank");
+    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(finalMsg)}`, "_blank");
   };
 
   const handleVideoConsultation = () => {
-    let baseMsg = "I would like to request a urgent video consultation";
+    let baseMsg = "I would like to request a urgent video consultation.";
     if (currentPatientRecord) {
-      baseMsg += ` for patient ${currentPatientRecord.patientName}. Diagnosis: ${currentPatientRecord.provisionalDiagnosis || 'Unknown'}. [Note: Please attach your XzeCure PDF to this chat]`;
-    } else if (formData.patientName) {
-      baseMsg += ` for patient ${formData.patientName}.`;
+      baseMsg += ` Diagnosis: ${currentPatientRecord.provisionalDiagnosis || 'Unknown'}. [Note: Please attach your XzeCure PDF to this chat]`;
     }
-    
+    const finalMsg = appendMetadata(baseMsg);
     setShowEmergencyDialog(false);
-    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(baseMsg)}`, "_blank");
+    window.open(`https://wa.me/918200095781?text=${encodeURIComponent(finalMsg)}`, "_blank");
   };
 
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -361,56 +438,59 @@ const App: React.FC = () => {
   if (isBooting) {
     return (
       <div className="fixed inset-0 bg-[#0a0f1d] flex flex-col items-center justify-center z-[200]">
-        <HeartPulse className="w-40 h-40 text-blue-500 animate-pulse" />
-        <h1 className="text-5xl font-black text-white tracking-tighter mt-8">XzeCure</h1>
-        <p className="text-blue-400 font-bold uppercase tracking-widest text-xs mt-2">Happy patient is our goal</p>
+        <HeartPulse className="w-32 h-32 md:w-40 md:h-40 text-blue-500 animate-pulse" />
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter mt-8">XzeCure</h1>
+        <p className="text-blue-400 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-2 text-center px-6">Happy patient is our goal</p>
       </div>
     );
   }
 
   if (isLocked) {
     return (
-      <div className="min-h-screen bg-[#0a0f1d] flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-lg space-y-12">
+      <div className="min-h-screen bg-[#0a0f1d] flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden">
+        <div className="w-full max-w-lg space-y-10 md:space-y-12">
           <div className="text-center space-y-6">
-            <div className="inline-block p-6 bg-white/5 border border-white/10 rounded-[2.5rem] shadow-2xl">
-              <img src={DEFAULT_LOGO} className="w-24 h-24 object-contain" />
+            <div className="inline-block p-4 md:p-6 bg-white/5 border border-white/10 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl">
+              <img src={DEFAULT_LOGO} className="w-20 h-20 md:w-24 md:h-24 object-contain" />
             </div>
             <div className="space-y-2">
               <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter">XzeCure</h1>
-              <p className="text-slate-500 font-medium italic text-lg">Happy patient is our goal</p>
+              <p className="text-slate-500 font-medium italic text-base md:text-lg">Happy patient is our goal</p>
+              {!userLocation && (
+                <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest animate-pulse mt-2">
+                  Requesting Location Access...
+                </p>
+              )}
             </div>
           </div>
-          <div className="grid gap-6">
-            <button onClick={() => { setSelectedRole('patient'); setIsLocked(false); }} className="group w-full p-8 bg-blue-600 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-2xl border border-blue-400/20">
+          <div className="grid gap-4 md:gap-6">
+            <button onClick={() => { setSelectedRole('patient'); setIsLocked(false); }} className="group w-full p-6 md:p-8 bg-blue-600 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-2xl border border-blue-400/20">
                <div className="flex items-center gap-4 text-white">
-                 <Users size={32} />
-                 <span className="text-2xl font-black tracking-tight">Patient Portal</span>
+                 <Users size={28} className="md:w-8 md:h-8" />
+                 <span className="text-xl md:text-2xl font-black tracking-tight">Patient Portal</span>
                </div>
-               <ChevronRight size={24} className="text-white/50 group-hover:translate-x-1 transition-transform" />
+               <ChevronRight size={20} className="md:w-6 md:h-6 text-white/50 group-hover:translate-x-1 transition-transform" />
             </button>
             {selectedRole === null ? (
-              <div className="grid gap-4">
-                <button onClick={() => setSelectedRole('doctor')} className="group w-full p-8 bg-slate-900 border border-white/10 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-lg hover:bg-slate-800">
-                   <div className="flex items-center gap-4 text-slate-300">
-                     <Stethoscope size={32} />
-                     <span className="text-2xl font-black tracking-tight">Doctor Access</span>
-                   </div>
-                   <ChevronRight size={24} className="text-slate-500 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
+              <button onClick={() => setSelectedRole('doctor')} className="group w-full p-6 md:p-8 bg-slate-900 border border-white/10 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-lg hover:bg-slate-800">
+                  <div className="flex items-center gap-4 text-slate-300">
+                    <Stethoscope size={28} className="md:w-8 md:h-8" />
+                    <span className="text-xl md:text-2xl font-black tracking-tight">Doctor Access</span>
+                  </div>
+                  <ChevronRight size={20} className="md:w-6 md:h-6 text-slate-500 group-hover:translate-x-1 transition-transform" />
+              </button>
             ) : (
               <div className="animate-in zoom-in duration-300">
-                <input autoFocus type="password" maxLength={6} value={pin} onChange={(e) => handlePinInput(e.target.value)} placeholder="••••••" className={`w-full bg-[#161e31] border-2 border-blue-500/30 text-white text-center py-7 rounded-full text-5xl font-black outline-none transition-all placeholder:text-slate-800 shadow-2xl`} />
+                <input autoFocus type="password" maxLength={6} value={pin} onChange={(e) => handlePinInput(e.target.value)} placeholder="••••••" className={`w-full bg-[#161e31] border-2 border-blue-500/30 text-white text-center py-5 md:py-7 rounded-full text-4xl md:text-5xl font-black outline-none transition-all placeholder:text-slate-800 shadow-2xl`} />
                 <button onClick={() => { setSelectedRole(null); setPin(''); }} className="w-full text-center mt-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Back to Roles</button>
               </div>
             )}
-            <button onClick={() => setShowEmergencyDialog(true)} className="group w-full p-8 bg-rose-600 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-2xl border border-rose-400/20">
+            <button onClick={() => setShowEmergencyDialog(true)} className="group w-full p-6 md:p-8 bg-rose-600 rounded-full flex items-center justify-between active:scale-95 transition-all shadow-2xl border border-rose-400/20">
                <div className="flex items-center gap-4 text-white">
-                 <Siren size={32} />
-                 <span className="text-2xl font-black tracking-tight uppercase">Emergency SOS</span>
+                 <Siren size={28} className="md:w-8 md:h-8" />
+                 <span className="text-xl md:text-2xl font-black tracking-tight uppercase">Emergency SOS</span>
                </div>
-               <ChevronRight size={24} className="text-white/50 group-hover:translate-x-1 transition-transform" />
+               <ChevronRight size={20} className="md:w-6 md:h-6 text-white/50 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         </div>
@@ -420,154 +500,139 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 selection:bg-blue-500 selection:text-white pb-20">
-      {toast && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[300] bg-white text-slate-950 px-10 py-5 rounded-full shadow-2xl font-black text-sm tracking-widest border border-white/20">{toast.message.toUpperCase()}</div>}
+      {toast && <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[300] bg-white text-slate-950 px-6 md:px-10 py-4 md:py-5 rounded-full shadow-2xl font-black text-[10px] md:text-sm tracking-widest border border-white/20 text-center whitespace-nowrap">{toast.message.toUpperCase()}</div>}
 
       {selectedRole === 'doctor' && (
-        <div className="max-w-4xl mx-auto px-6 py-12 space-y-12 pb-32">
-          <header className={`flex justify-between items-center bg-[#161e31] border-white/10 p-6 rounded-[2.5rem] border shadow-2xl`}>
-            <div className="flex items-center gap-6">
-              <img src={DEFAULT_LOGO} className="w-16 h-16 object-contain" />
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-8 md:space-y-12 pb-32">
+          <header className="flex flex-col sm:flex-row justify-between items-center bg-[#161e31] border-white/10 p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] border shadow-2xl gap-4">
+            <div className="flex items-center gap-4 md:gap-6 w-full sm:w-auto">
+              <img src={DEFAULT_LOGO} className="w-12 h-12 md:w-16 md:h-16 object-contain" />
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tighter">Doctor Hub</h1>
-                <p className={`text-[10px] font-black text-blue-500 uppercase tracking-widest`}>
+                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter">Doctor Hub</h1>
+                <p className="text-[8px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
                   Clinical Command Center
+                  {isSyncing && <Cloud size={10} className="text-blue-400 animate-pulse" />}
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
-               <button onClick={handleReset} title="Reset Form" className="p-2 bg-rose-950/30 border border-rose-500/20 rounded-xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
-                  <RotateCcw size={18} />
-                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Reset Form</span>
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
+               <button onClick={() => setShowVisitHistory(true)} title="Visit History" className="p-3 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg hover:text-blue-400 transition-colors flex items-center gap-2 group">
+                  <History size={18} />
+                  <span className="hidden lg:inline font-black text-[10px] tracking-widest uppercase">Visit History</span>
                </button>
-               <label title="Restore Report" className="p-2 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
+               <button onClick={handleReset} title="Reset Form" className="p-3 bg-rose-950/30 border border-rose-500/20 rounded-xl text-rose-500 active:scale-90 shadow-lg hover:bg-rose-900/40 transition-colors flex items-center gap-2 group">
+                  <RotateCcw size={18} />
+                  <span className="hidden lg:inline font-black text-[10px] tracking-widest uppercase">Clear Form</span>
+               </button>
+               <label title="Restore Report" className="p-3 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg cursor-pointer hover:text-white transition-colors flex items-center gap-2 group">
                   <FileUp size={18} />
-                  <span className="hidden sm:inline font-black text-[10px] tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">Import Hub</span>
+                  <span className="hidden lg:inline font-black text-[10px] tracking-widest uppercase">Import hub</span>
                   <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
                </label>
-               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-2 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={18} /></button>
+               <button onClick={() => { setIsLocked(true); setSelectedRole(null); setPin(''); }} className="p-3 bg-slate-900 rounded-xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={18} /></button>
             </div>
           </header>
 
-          <form onSubmit={handleSubmit} className="space-y-10">
+          <form onSubmit={handleSubmit} className="space-y-8 md:space-y-10">
             {/* Core Patient Identity */}
-            <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-12">
+            <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl space-y-8 md:space-y-12">
               <div className="flex justify-between items-center mb-4">
-                 <div className="flex items-center gap-6">
-                    <div className="p-4 bg-blue-600/10 text-blue-500 rounded-2xl"><User size={24} /></div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Identity Node</h2>
+                 <div className="flex items-center gap-4 md:gap-6">
+                    <div className="p-3 md:p-4 bg-blue-600/10 text-blue-500 rounded-xl md:rounded-2xl"><User size={20} className="md:w-6 md:h-6" /></div>
+                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Identity Node</h2>
                  </div>
-                 {selectedRole === 'doctor' && (
-                   <label className="p-4 bg-white/5 text-blue-400 rounded-2xl font-black text-[10px] tracking-widest uppercase cursor-pointer hover:bg-white/10 transition-all flex items-center gap-2">
-                     <RefreshCcw size={14} /> Restore Follow-up
-                     <input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} />
-                   </label>
-                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Practitioner Name</label>
-                  <input required type="text" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                <div className="space-y-2">
+                  <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Practitioner Name</label>
+                  <input required type="text" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-lg md:text-xl font-bold text-white focus:border-blue-500 outline-none" />
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Patient Identity</label>
-                  <input required type="text" value={formData.patientName} onChange={e => setFormData({...formData, patientName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none" />
+                <div className="space-y-2">
+                  <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Patient Identity</label>
+                  <input required type="text" value={formData.patientName} onChange={e => setFormData({...formData, patientName: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-lg md:text-xl font-bold text-white focus:border-blue-500 outline-none" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Age</label>
-                  <input type="text" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Gender</label>
-                  <input type="text" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" placeholder="M/F/O" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Weight (kg)</label>
-                  <input type="text" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Height (cm)</label>
-                  <input type="text" value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contact</label>
-                  <input type="text" value={formData.contactNumber} onChange={e => setFormData({...formData, contactNumber: e.target.value})} className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center" />
-                </div>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+                {[
+                  { label: 'Age', key: 'age', ph: '' },
+                  { label: 'Gender', key: 'gender', ph: 'M/F/O' },
+                  { label: 'Weight (kg)', key: 'weight', ph: '' },
+                  { label: 'Height (cm)', key: 'height', ph: '' },
+                  { label: 'Contact', key: 'contactNumber', ph: '' },
+                ].map(f => (
+                  <div key={f.key} className="space-y-2">
+                    <label className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">{f.label}</label>
+                    <input type="text" value={(formData as any)[f.key]} onChange={e => setFormData({...formData, [f.key]: e.target.value})} className="w-full bg-[#161e31] p-4 md:p-6 rounded-[1.2rem] md:rounded-[2rem] border border-white/5 text-white font-black text-center" placeholder={f.ph} />
+                  </div>
+                ))}
               </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Referral / Treating Doctor Name</label>
-                <input type="text" value={formData.treatingDoctor} onChange={e => setFormData({...formData, treatingDoctor: e.target.value})} placeholder="Enter name of referring or primary treating physician" className="w-full bg-[#161e31] border border-blue-500/10 p-8 rounded-[2.5rem] text-xl font-bold text-white focus:border-blue-500 outline-none shadow-inner" />
+              <div className="space-y-2">
+                <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Referral / Treating Doctor Name</label>
+                <input type="text" value={formData.treatingDoctor} onChange={e => setFormData({...formData, treatingDoctor: e.target.value})} placeholder="Enter name of physician" className="w-full bg-[#161e31] border border-blue-500/10 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-lg md:text-xl font-bold text-white focus:border-blue-500 outline-none" />
               </div>
             </div>
 
-            {/* Doctor-Only Comprehensive Sections */}
-            {selectedRole === 'doctor' && (
-              <div className="space-y-10">
-                {/* Clinical History Node */}
-                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
-                   <div className="flex items-center gap-6">
-                      <div className="p-4 bg-amber-600/10 text-amber-500 rounded-2xl"><Clipboard size={24} /></div>
-                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Clinical History</h2>
+            {/* Doctor Sections */}
+            <div className="space-y-8 md:space-y-10">
+                {/* Clinical History */}
+                <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl space-y-6 md:space-y-10">
+                   <div className="flex items-center gap-4 md:gap-6">
+                      <div className="p-3 md:p-4 bg-amber-600/10 text-amber-500 rounded-xl md:rounded-2xl"><Clipboard size={20} className="md:w-6 md:h-6" /></div>
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Clinical History</h2>
                    </div>
-                   <div className="grid gap-10">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chief Complaints & Duration</label>
-                        <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                   <div className="grid gap-6 md:gap-10">
+                      <div className="space-y-2">
+                        <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chief Complaints & Duration</label>
+                        <textarea value={formData.complaints} onChange={e => setFormData({...formData, complaints: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white outline-none focus:border-blue-500 resize-none" />
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Medical History</label>
-                          <textarea value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
-                        </div>
-                        <div style={{ display: 'none' }}> {/* surgicalHistory hidden as per current workflow logic or minimal usage */}
-                          <textarea value={formData.surgicalHistory} onChange={e => setFormData({...formData, surgicalHistory: e.target.value})} />
-                        </div>
+                      <div className="space-y-2">
+                          <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Past Medical History</label>
+                          <textarea value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white outline-none focus:border-blue-500 resize-none" />
                       </div>
                    </div>
                 </div>
 
-                {/* Physical Examination Node */}
-                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
-                   <div className="flex items-center gap-6">
-                      <div className="p-4 bg-emerald-600/10 text-emerald-500 rounded-2xl"><Activity size={24} /></div>
-                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Examination & Vitals</h2>
+                {/* Vitals */}
+                <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl space-y-6 md:space-y-10">
+                   <div className="flex items-center gap-4 md:gap-6">
+                      <div className="p-3 md:p-4 bg-emerald-600/10 text-emerald-500 rounded-xl md:rounded-2xl"><Activity size={20} className="md:w-6 md:h-6" /></div>
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Examination & Vitals</h2>
                    </div>
-                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-6">
+                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
                       {[
                         {l: 'Temp (°F)', k: 'vitalTemp'}, {l: 'BP (mmHg)', k: 'vitalBp'}, 
                         {l: 'SpO2 (%)', k: 'vitalSpo2'}, {l: 'HR (bpm)', k: 'vitalHr'}, {l: 'RBS (mg/dL)', k: 'vitalRbs'}
                       ].map(v => (
                         <div key={v.k} className="space-y-2 text-center">
-                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{v.l}</label>
-                          <input type="text" value={(formData as any)[v.k]} onChange={e => setFormData({...formData, [v.k]: e.target.value})} className="w-full bg-[#161e31] p-5 rounded-2xl border border-white/5 text-white font-black text-center" />
+                          <label className="text-[8px] md:text-[9px] font-black text-slate-600 uppercase tracking-widest">{v.l}</label>
+                          <input type="text" value={(formData as any)[v.k]} onChange={e => setFormData({...formData, [v.k]: e.target.value})} className="w-full bg-[#161e31] p-4 md:p-5 rounded-xl md:rounded-2xl border border-white/5 text-white font-black text-center" />
                         </div>
                       ))}
                    </div>
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Physical Signs / Observations</label>
-                      <textarea value={formData.signs} onChange={e => setFormData({...formData, signs: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                   <div className="space-y-2">
+                      <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Physical Signs / Observations</label>
+                      <textarea value={formData.signs} onChange={e => setFormData({...formData, signs: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white outline-none focus:border-blue-500 resize-none" />
                    </div>
                 </div>
 
-                {/* Treatment & Diagnosis Node */}
-                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl space-y-10">
-                   <div className="flex items-center gap-6">
-                      <div className="p-4 bg-rose-600/10 text-rose-500 rounded-2xl"><BriefcaseMedical size={24} /></div>
-                      <h2 className="text-2xl font-black text-white uppercase tracking-tight">Clinical Decision</h2>
+                {/* Treatment & Diagnosis */}
+                <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl space-y-6 md:space-y-10">
+                   <div className="flex items-center gap-4 md:gap-6">
+                      <div className="p-3 md:p-4 bg-rose-600/10 text-rose-500 rounded-xl md:rounded-2xl"><BriefcaseMedical size={20} className="md:w-6 md:h-6" /></div>
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Clinical Decision</h2>
                    </div>
                    
-                   <div className="space-y-10">
-                      <div className="space-y-3 relative" ref={icdRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Diagnosis / ICD-10 Search</label>
-                        <input type="text" value={formData.provisionalDiagnosis} onChange={e => { handleIcdSearch(e.target.value); }} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-xl font-black text-white outline-none focus:border-rose-500 shadow-inner" />
+                   <div className="space-y-8 md:space-y-10">
+                      <div className="space-y-2 relative" ref={icdRef}>
+                        <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Diagnosis / ICD-10 Search</label>
+                        <input type="text" value={formData.provisionalDiagnosis} onChange={e => { handleIcdSearch(e.target.value); }} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-lg md:text-xl font-black text-white outline-none focus:border-rose-500" />
                         {icdSuggestions.length > 0 && (
-                          <div className="absolute z-[100] top-full left-0 right-0 mt-2 bg-[#161e31] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                          <div className="absolute z-[100] top-full left-0 right-0 mt-2 bg-[#161e31] border border-white/10 rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden">
                             {icdSuggestions.map((item, idx) => (
-                              <button key={idx} type="button" onClick={() => { setFormData(prev => ({ ...prev, provisionalDiagnosis: item.description, icdCode: item.code })); setIcdSuggestions([]); }} className="w-full text-left p-6 px-8 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group">
-                                <div><p className="text-white font-black">{item.description}</p><p className="text-[10px] text-slate-500 font-bold">ICD: {item.code}</p></div>
+                              <button key={idx} type="button" onClick={() => { setFormData(prev => ({ ...prev, provisionalDiagnosis: item.description, icdCode: item.code })); setIcdSuggestions([]); }} className="w-full text-left p-4 md:p-6 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group">
+                                <div><p className="text-white font-black text-sm md:text-base">{item.description}</p><p className="text-[8px] md:text-[10px] text-slate-500 font-bold">ICD: {item.code}</p></div>
                                 <ChevronRight size={16} />
                               </button>
                             ))}
@@ -575,20 +640,20 @@ const App: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Prescribed Medications (Rx)</label>
-                          <button type="button" onClick={addMedication} className="p-3 bg-blue-600/20 text-blue-400 rounded-xl flex items-center gap-2 font-black text-[10px] tracking-widest shadow-lg uppercase"><Plus size={14} /> Add Med</button>
+                          <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Prescribed Medications (Rx)</label>
+                          <button type="button" onClick={addMedication} className="p-2 md:p-3 bg-blue-600/20 text-blue-400 rounded-lg md:rounded-xl flex items-center gap-2 font-black text-[9px] md:text-[10px] tracking-widest uppercase"><Plus size={14} /> Add Med</button>
                         </div>
-                        <div className="grid gap-4">
+                        <div className="grid gap-3 md:gap-4">
                            {formData.medications.map(med => (
-                             <div key={med.id} className="grid grid-cols-1 sm:grid-cols-5 gap-4 p-6 bg-[#161e31] rounded-[2rem] border border-white/5 shadow-inner animate-in slide-in-from-left duration-300">
-                                <input placeholder="Med Name" value={med.name} onChange={e => updateMedication(med.id, 'name', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white text-lg outline-none focus:border-blue-500" />
-                                <input placeholder="Dose (e.g. 500mg)" value={med.dose} onChange={e => updateMedication(med.id, 'dose', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
-                                <input placeholder="Timing (e.g. 1-0-1)" value={med.timing} onChange={e => updateMedication(med.id, 'timing', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
+                             <div key={med.id} className="grid grid-cols-1 sm:grid-cols-5 gap-3 md:gap-4 p-4 md:p-6 bg-[#161e31] rounded-[1.5rem] md:rounded-[2rem] border border-white/5 shadow-inner">
+                                <input placeholder="Med Name" value={med.name} onChange={e => updateMedication(med.id, 'name', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white text-base md:text-lg outline-none focus:border-blue-500" />
+                                <input placeholder="Dose" value={med.dose} onChange={e => updateMedication(med.id, 'dose', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
+                                <input placeholder="Timing" value={med.timing} onChange={e => updateMedication(med.id, 'timing', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
                                 <input placeholder="Days" value={med.days} onChange={e => updateMedication(med.id, 'days', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white outline-none focus:border-blue-500" />
-                                <div className="flex justify-between items-center">
-                                  <input placeholder="Route" value={med.route} onChange={e => updateMedication(med.id, 'route', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white w-20 outline-none focus:border-blue-500" />
+                                <div className="flex justify-between items-center gap-2">
+                                  <input placeholder="Route" value={med.route} onChange={e => updateMedication(med.id, 'route', e.target.value)} className="bg-transparent border-b border-white/10 p-2 font-black text-white w-full outline-none focus:border-blue-500" />
                                   <button type="button" onClick={() => removeMedication(med.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg"><Trash2 size={18} /></button>
                                 </div>
                              </div>
@@ -596,80 +661,74 @@ const App: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Investigations Advised (Labs / Imaging)</label>
-                        <textarea value={formData.investigationsAdvised} onChange={e => setFormData({...formData, investigationsAdvised: e.target.value})} rows={2} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Investigations Advised</label>
+                        <textarea value={formData.investigationsAdvised} onChange={e => setFormData({...formData, investigationsAdvised: e.target.value})} rows={2} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white outline-none focus:border-blue-500 resize-none" />
                       </div>
 
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Treatment Plan / Procedures</label>
-                        <textarea value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
-                      </div>
-
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Non-Medicinal Advice / Diet</label>
-                        <textarea value={formData.nonMedicinalAdvice} onChange={e => setFormData({...formData, nonMedicinalAdvice: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2rem] text-lg font-bold text-white outline-none focus:border-blue-500 shadow-inner resize-none" />
+                      <div className="space-y-2">
+                        <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Treatment Plan / Procedures</label>
+                        <textarea value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} rows={3} className="w-full bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white outline-none focus:border-blue-500 resize-none" />
                       </div>
                    </div>
                 </div>
 
-                {/* Follow-up Node */}
-                <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-10">
-                   <div className="flex items-center gap-6">
-                      <div className="p-4 bg-purple-600/10 text-purple-500 rounded-2xl"><CalendarPlus size={24} /></div>
+                {/* Follow-up */}
+                <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6 md:gap-10">
+                   <div className="flex items-center gap-4 md:gap-6 w-full sm:w-auto">
+                      <div className="p-3 md:p-4 bg-purple-600/10 text-purple-500 rounded-xl md:rounded-2xl"><CalendarPlus size={20} className="md:w-6 md:h-6" /></div>
                       <div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Follow-up Schedule</h2>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Next clinical encounter</p>
+                        <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">Follow-up Schedule</h2>
+                        <p className="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest">Next clinical encounter</p>
                       </div>
                    </div>
-                   <div className="flex flex-col sm:flex-row items-center gap-8">
-                      <button type="button" onClick={() => setFormData({...formData, followup: formData.followup === 'Yes' ? 'No' : 'Yes'})} className={`p-6 px-10 rounded-full font-black uppercase text-xs tracking-widest border transition-all ${formData.followup === 'Yes' ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_25px_rgba(147,51,234,0.4)]' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                   <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-8 w-full sm:w-auto">
+                      <button type="button" onClick={() => setFormData({...formData, followup: formData.followup === 'Yes' ? 'No' : 'Yes'})} className={`w-full sm:w-auto p-4 md:p-6 px-6 md:px-10 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest border transition-all ${formData.followup === 'Yes' ? 'bg-purple-600 border-purple-400 text-white shadow-xl' : 'bg-white/5 border-white/10 text-slate-500'}`}>
                         {formData.followup === 'Yes' ? 'Planned' : 'Not Needed'}
                       </button>
                       {formData.followup === 'Yes' && (
-                        <div className="flex items-center gap-4 bg-[#161e31] border border-white/10 p-2 rounded-[2rem]">
-                          <Calendar size={18} className="text-purple-400 ml-4" />
-                          <input type="text" placeholder="e.g. Next Monday / Date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="bg-transparent p-4 text-white font-black outline-none placeholder:text-slate-700" />
+                        <div className="flex items-center gap-3 bg-[#161e31] border border-white/10 p-1 md:p-2 rounded-full w-full sm:w-auto">
+                          <Calendar size={16} className="text-purple-400 ml-3 md:ml-4" />
+                          <input type="text" placeholder="Date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="bg-transparent p-3 text-sm md:text-base text-white font-black outline-none placeholder:text-slate-700 w-full" />
                         </div>
                       )}
                    </div>
                 </div>
-              </div>
-            )}
+            </div>
 
-            {/* Billing Section (Universal for Hubs) */}
-            <div className="bg-[#101726] rounded-[3rem] border border-white/10 p-12 shadow-2xl">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Fee Category</label>
+            {/* Billing */}
+            <div className="bg-[#101726] rounded-[2rem] md:rounded-[3rem] border border-white/10 p-6 md:p-12 shadow-2xl">
+              <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4 mb-4 block">Fee Category</label>
               <div className="relative">
-                <select onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-8 rounded-[2.5rem] font-black text-white text-xl appearance-none shadow-lg outline-none focus:border-blue-500">
+                <select value={formData.serviceCharge} onChange={handleServiceChange} className="w-full bg-[#161e31] border border-white/5 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] font-black text-white text-base md:text-xl appearance-none outline-none focus:border-blue-500">
                     <option value="">-- Select Bill Category --</option>
                     {SERVICE_GROUPS.map(g => (<optgroup key={g.label} label={g.label} className="bg-[#0a0f1d]">{g.options.map(o => <option key={o.label} value={o.value}>{o.label}</option>)}</optgroup>))}
                 </select>
-                <ChevronRight size={24} className="absolute right-8 top-8 text-slate-700 rotate-90" />
+                <ChevronRight size={20} className="absolute right-6 md:right-8 top-1/2 -translate-y-1/2 text-slate-700 rotate-90" />
               </div>
             </div>
 
-            <button type="submit" disabled={isGenerating} className={`w-full bg-blue-600 shadow-[0_0_50px_rgba(37,99,235,0.3)] py-10 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 transition-all border border-white/10`}>
-              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={40} /> SAVE CLINICAL REPORT</>}
+            <button type="submit" disabled={isGenerating} className={`w-full bg-blue-600 py-6 md:py-10 rounded-[1.5rem] md:rounded-[2.5rem] font-black text-xl md:text-3xl flex items-center justify-center gap-4 md:gap-6 active:scale-95 disabled:opacity-50 transition-all shadow-2xl`}>
+              {isGenerating ? <><Loader2 className="animate-spin" /> COMPILING...</> : <><Save size={32} className="md:w-10 md:h-10" /> SAVE CLINICAL REPORT</>}
             </button>
           </form>
 
           {pdfBlob && (
-            <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-8 animate-in zoom-in duration-500 overflow-y-auto">
-               <div className="w-full max-w-5xl bg-[#101726] rounded-[2.5rem] sm:rounded-[4rem] border border-white/10 p-6 sm:p-12 space-y-6 sm:space-y-10 shadow-2xl my-auto">
+            <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 md:p-8 animate-in zoom-in duration-500 overflow-y-auto">
+               <div className="w-full max-w-5xl bg-[#101726] rounded-[2rem] md:rounded-[4rem] border border-white/10 p-4 md:p-12 space-y-6 md:space-y-10 shadow-2xl my-auto">
                   <div className="flex justify-between items-center">
-                     <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter">Report Captured</h2>
-                     <button onClick={() => setPdfBlob(null)} className="p-4 sm:p-6 bg-slate-800 rounded-2xl sm:rounded-3xl text-slate-400 active:scale-90 shadow-xl"><XCircle size={24} /></button>
+                     <h2 className="text-xl md:text-4xl font-black text-white tracking-tighter">Report Captured</h2>
+                     <button onClick={() => setPdfBlob(null)} className="p-3 md:p-6 bg-slate-800 rounded-xl md:rounded-3xl text-slate-400 active:scale-90 shadow-xl"><XCircle size={24} /></button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-6 sm:p-10 bg-blue-600 text-white rounded-full font-black text-xl sm:text-2xl flex items-center justify-center gap-4 sm:gap-6 shadow-2xl hover:bg-blue-500">
-                      <FileDown size={32} /> SAVE REPORT
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                    <button onClick={() => window.open(URL.createObjectURL(pdfBlob as Blob))} className="p-5 md:p-10 bg-blue-600 text-white rounded-full font-black text-lg md:text-2xl flex items-center justify-center gap-3 md:gap-6 shadow-2xl">
+                      <FileDown size={24} className="md:w-8 md:h-8" /> SAVE REPORT
                     </button>
-                    <button onClick={() => setShowPaymentQR(true)} className="p-6 sm:p-10 bg-emerald-600 text-white rounded-full font-black text-xl sm:text-2xl flex items-center justify-center gap-4 sm:gap-6 shadow-2xl hover:bg-emerald-500">
-                      <CreditCard size={32} /> PAY ₹{formData.serviceCharge}
+                    <button onClick={() => setShowPaymentQR(true)} className="p-5 md:p-10 bg-emerald-600 text-white rounded-full font-black text-lg md:text-2xl flex items-center justify-center gap-3 md:gap-6 shadow-2xl">
+                      <CreditCard size={24} className="md:w-8 md:h-8" /> PAY ₹{formData.serviceCharge}
                     </button>
                   </div>
-                  <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden border-[6px] sm:border-[12px] border-slate-950 h-[80vh] w-full">
+                  <div className="bg-white rounded-[1.2rem] md:rounded-[2rem] overflow-hidden border-[4px] md:border-[12px] border-slate-950 h-[60vh] md:h-[80vh] w-full">
                     <iframe src={URL.createObjectURL(pdfBlob as Blob)} title="PDF Preview" className="w-full h-full border-none" />
                   </div>
                </div>
@@ -678,53 +737,108 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {selectedRole === 'patient' && (
-        <div className="max-w-2xl mx-auto px-6 py-12 space-y-12 pb-80">
-          <header className="flex justify-between items-center bg-[#161e31] backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/10 sticky top-4 z-[50] shadow-2xl">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-lg"><User size={32} /></div>
-              <div><h2 className="text-2xl font-black text-white tracking-tight">{currentPatientRecord?.patientName || 'Guest User'}</h2><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Active Clinical Hub</p></div>
+      {/* Doctor Visit History Modal */}
+      {showVisitHistory && (
+        <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-300 overflow-y-auto">
+          <div className="bg-[#101726] border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] w-full max-w-3xl h-[85vh] flex flex-col shadow-2xl my-auto">
+            <div className="flex justify-between items-center mb-8 shrink-0">
+               <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter flex items-center gap-4"><History className="text-blue-500" /> Patient Records</h3>
+               <button onClick={() => setShowVisitHistory(false)} className="p-3 md:p-6 bg-white/5 rounded-2xl md:rounded-3xl text-slate-500 hover:text-white"><XCircle size={24} /></button>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setShowPatientSettings(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><Settings size={20} /></button>
-              <button onClick={() => setShowVitalsHistory(true)} className="p-3 bg-slate-900 rounded-xl text-slate-400 shadow-lg"><History size={20} /></button>
-              <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-4 bg-slate-900 rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={24} /></button>
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              {savedVisits.length === 0 ? (
+                <div className="text-center py-20 text-slate-700 font-black uppercase tracking-widest italic opacity-50">No saved visits found</div>
+              ) : savedVisits.map(visit => (
+                <div key={visit.id} onClick={() => handleLoadVisit(visit)} className="bg-[#161e31] border border-white/5 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] space-y-4 shadow-xl group cursor-pointer hover:border-blue-500/30 transition-all">
+                   <div className="flex justify-between items-start">
+                     <div>
+                       <h4 className="text-lg md:text-2xl font-black text-white group-hover:text-blue-400 transition-colors">{visit.name}</h4>
+                       <p className="text-[10px] md:text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">{new Date(visit.date).toLocaleString('en-IN')}</p>
+                     </div>
+                     <span className="text-[8px] md:text-[10px] font-black text-blue-500 bg-blue-500/10 px-4 py-1 rounded-full uppercase tracking-widest">{visit.visitId}</span>
+                   </div>
+                   {visit.fullData?.provisionalDiagnosis && (
+                     <div className="bg-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/5">
+                        <p className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Diagnosis</p>
+                        <p className="text-sm md:text-base font-bold text-slate-300 truncate">{visit.fullData.provisionalDiagnosis}</p>
+                     </div>
+                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedRole === 'patient' && (
+        <div className="max-w-2xl mx-auto px-4 md:px-6 py-8 md:py-12 space-y-6 md:space-y-8 pb-80">
+          <header className="flex justify-between items-center bg-[#161e31] p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] border border-white/10 sticky top-4 z-[50] shadow-2xl">
+            <div className="flex items-center gap-4 md:gap-6 overflow-hidden">
+              <div className="flex-shrink-0 w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-xl md:rounded-[1.5rem] flex items-center justify-center text-white shadow-lg"><User size={24} className="md:w-8 md:h-8" /></div>
+              <div className="truncate">
+                <h2 className="text-xl md:text-2xl font-black text-white tracking-tight truncate">{patientManualName || currentPatientRecord?.patientName || 'Guest User'}</h2>
+                <p className="text-[8px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                  Active Clinical Hub
+                  {isSyncing && <Cloud size={10} className="text-blue-400 animate-pulse" />}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={() => setShowPatientSettings(true)} className="p-2 md:p-3 bg-slate-900 rounded-lg md:rounded-xl text-slate-400 shadow-lg"><Settings size={18} className="md:w-5 md:h-5" /></button>
+              <button onClick={() => setShowVitalsHistory(true)} className="p-2 md:p-3 bg-slate-900 rounded-lg md:rounded-xl text-slate-400 shadow-lg"><History size={18} className="md:w-5 md:h-5" /></button>
+              <button onClick={() => { setIsLocked(true); setSelectedRole(null); }} className="p-3 md:p-4 bg-slate-900 rounded-xl md:rounded-2xl text-slate-400 active:scale-90 shadow-lg"><ArrowLeft size={20} className="md:w-6 md:h-6" /></button>
             </div>
           </header>
 
-          {!currentPatientRecord ? (
-            <div className="space-y-12 animate-in fade-in duration-500">
-               <div className="bg-[#101726] border-4 border-dashed border-white/10 p-10 sm:p-16 rounded-[4rem] text-center space-y-12 shadow-2xl">
-                  <FileUp className="w-24 h-24 text-blue-500 mx-auto animate-bounce" />
-                  <div className="space-y-4"><h3 className="text-4xl font-black text-white tracking-tighter">Connect Hub</h3><p className="text-slate-500 font-medium text-xl">Upload clinic report to sync hub.</p></div>
-                  <label className="block w-full bg-blue-600 text-white py-10 rounded-full font-black text-2xl cursor-pointer active:scale-95 shadow-lg uppercase tracking-widest">CHOOSE CLINIC PDF<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
+          {!currentPatientRecord && (
+            <div className="bg-[#101726] border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] space-y-6 shadow-2xl">
+               <div className="flex items-center gap-3 text-blue-500">
+                  <UserCheck size={18} />
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em]">Patient Node Identity</h3>
                </div>
-               <div className="px-4">
-                  <a href="https://obe-cure.vercel.app/" target="_blank" rel="noopener noreferrer" className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-2xl border-2 border-orange-100 uppercase tracking-tight">your obesity with us</a>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-600 uppercase ml-4">Full Patient Name</label>
+                    <input type="text" placeholder="Name" value={patientManualName} onChange={(e) => setPatientManualName(e.target.value)} className="w-full bg-[#161e31] border border-white/5 p-4 rounded-xl text-white font-bold outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-600 uppercase ml-4">Mobile Number</label>
+                    <input type="text" placeholder="Mobile" value={patientManualPhone} onChange={(e) => setPatientManualPhone(e.target.value)} className="w-full bg-[#161e31] border border-white/5 p-4 rounded-xl text-white font-bold outline-none focus:border-blue-500" />
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {!currentPatientRecord ? (
+            <div className="space-y-10">
+               <div className="bg-[#101726] border-4 border-dashed border-white/10 p-8 md:p-16 rounded-[2.5rem] md:rounded-[4rem] text-center space-y-10 shadow-2xl">
+                  <FileUp className="w-16 h-16 md:w-24 md:h-24 text-blue-500 mx-auto animate-bounce" />
+                  <div className="space-y-3"><h3 className="text-3xl md:text-4xl font-black text-white tracking-tighter">Connect Hub</h3><p className="text-slate-500 font-medium text-lg md:text-xl">Upload clinic report to sync hub.</p></div>
+                  <label className="block w-full bg-blue-600 text-white py-8 md:py-10 rounded-full font-black text-xl md:text-2xl cursor-pointer active:scale-95 shadow-lg uppercase tracking-widest">CHOOSE CLINIC PDF<input type="file" accept="application/pdf" className="hidden" onChange={handlePdfImport} /></label>
                </div>
             </div>
           ) : (
-            <div className="space-y-10 animate-in fade-in duration-700">
+            <div className="space-y-8">
                {/* Quick Vitals Log Card */}
-               <div onClick={() => setShowVitalsForm(true)} className="bg-emerald-600/10 border border-emerald-500/20 p-8 rounded-[3rem] space-y-4 shadow-xl cursor-pointer hover:bg-emerald-600/15 transition-all">
+               <div onClick={() => setShowVitalsForm(true)} className="bg-emerald-600/10 border border-emerald-500/20 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] space-y-4 shadow-xl cursor-pointer hover:bg-emerald-600/15 transition-all">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Activity className="text-emerald-500" /> Log Daily Vitals</h3>
-                    <div className="p-3 bg-emerald-600 text-white rounded-full shadow-lg"><Plus size={20} /></div>
+                    <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tight"><Activity className="text-emerald-500" /> Log Daily Vitals</h3>
+                    <div className="p-2 md:p-3 bg-emerald-600 text-white rounded-full shadow-lg"><Plus size={18} className="md:w-5 md:h-5" /></div>
                   </div>
-                  <p className="text-slate-400 text-sm font-medium">Capture health stats and share with clinical hub +91 8200095781.</p>
+                  <p className="text-slate-400 text-xs md:text-sm font-medium">Capture health stats and share with clinical hub +91 8200095781.</p>
                </div>
 
                {currentPatientRecord.medicineAdvice && currentPatientRecord.medicineAdvice.length > 0 && (
-                 <div className="bg-blue-600/10 border border-blue-500/20 p-8 rounded-[3.5rem] space-y-6 shadow-2xl">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Timer className="text-blue-400" /> Medicine Advice</h3>
+                 <div className="bg-blue-600/10 border border-blue-500/20 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] space-y-6 shadow-2xl">
+                    <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tight"><Timer className="text-blue-400" /> Medicine Advice</h3>
                     <div className="grid gap-4">
                       {currentPatientRecord.medicineAdvice.map(item => (
-                        <div key={item.id} onClick={() => toggleAdvice(item.id)} className={`p-7 rounded-[2.5rem] border transition-all cursor-pointer shadow-lg ${adviceStatus[item.id] ? 'bg-blue-500/5 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
-                           <p className="text-2xl font-black text-white">{item.medicineName}</p>
-                           <div className="flex gap-4 mt-4 flex-wrap">
-                             <span className="text-[10px] font-black text-blue-400 uppercase bg-blue-400/10 px-4 py-2 rounded-full shadow-inner border border-blue-400/10">🕒 {item.time}</span>
-                             <span className="text-[10px] font-black text-emerald-400 uppercase bg-emerald-400/10 px-4 py-2 rounded-full shadow-inner border border-emerald-400/10">⏳ {item.duration}</span>
-                             <span className="text-[10px] font-black text-amber-400 uppercase bg-amber-400/10 px-4 py-2 rounded-full shadow-inner border border-amber-400/10">🗓️ {item.days}</span>
+                        <div key={item.id} onClick={() => toggleAdvice(item.id)} className={`p-5 md:p-7 rounded-[1.5rem] md:rounded-[2.5rem] border transition-all cursor-pointer shadow-lg ${adviceStatus[item.id] ? 'bg-blue-500/5 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
+                           <p className="text-xl md:text-2xl font-black text-white">{item.medicineName}</p>
+                           <div className="flex gap-2 md:gap-4 mt-3 md:mt-4 flex-wrap">
+                             <span className="text-[8px] md:text-[10px] font-black text-blue-400 uppercase bg-blue-400/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-blue-400/10">🕒 {item.time}</span>
+                             <span className="text-[8px] md:text-[10px] font-black text-emerald-400 uppercase bg-emerald-400/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-emerald-400/10">⏳ {item.duration}</span>
+                             <span className="text-[8px] md:text-[10px] font-black text-amber-400 uppercase bg-amber-400/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-amber-400/10">🗓️ {item.days}</span>
                            </div>
                         </div>
                       ))}
@@ -732,157 +846,124 @@ const App: React.FC = () => {
                  </div>
                )}
 
-               <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] space-y-8 shadow-2xl">
-                 <div className="flex justify-between items-center">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-4 uppercase tracking-tight"><Pill className="text-blue-500" /> Medication Plan</h3>
-                    <button onClick={handleMedicineOrder} className="p-4 bg-emerald-600 text-white rounded-2xl active:scale-90 shadow-lg flex items-center gap-2 font-black text-xs">
-                      <ShoppingCart size={18} /> PLACE ORDER
+               <div className="bg-[#101726] border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] space-y-6 md:space-y-8 shadow-2xl">
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tight"><Pill className="text-blue-500" /> Medication Plan</h3>
+                    <button onClick={handleMedicineOrder} className="w-full sm:w-auto p-3 md:p-4 bg-emerald-600 text-white rounded-xl md:rounded-2xl active:scale-90 shadow-lg flex items-center justify-center gap-2 font-black text-[10px] md:text-xs">
+                      <ShoppingCart size={16} className="md:w-18 md:h-18" /> PLACE ORDER
                     </button>
                  </div>
-                 <div className="grid gap-4">
+                 <div className="grid gap-3 md:gap-4">
                    {currentPatientRecord.medications.map(med => (
-                     <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-7 rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
-                        <div className="flex gap-6 items-center">
-                          <div className={`p-4 rounded-2xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'} shadow-xl transition-all`}>
-                            <Check size={24} strokeWidth={4} />
+                     <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-5 md:p-7 rounded-[1.5rem] md:rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
+                        <div className="flex gap-4 md:gap-6 items-center overflow-hidden">
+                          <div className={`flex-shrink-0 p-3 md:p-4 rounded-xl md:rounded-2xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'} transition-all`}>
+                            <Check size={20} strokeWidth={4} className="md:w-6 md:h-6" />
                           </div>
-                          <div>
-                            <p className={`text-2xl font-black ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'}`}>{med.name}</p>
-                            <p className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">{med.timing} • {med.dose}</p>
+                          <div className="truncate">
+                            <p className={`text-lg md:text-2xl font-black truncate ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'}`}>{med.name}</p>
+                            <p className="text-[10px] md:text-xs font-black text-blue-500 uppercase tracking-widest mt-1">{med.timing} • {med.dose}</p>
                           </div>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); }} className={`p-5 rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-110' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={20} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); }} className={`flex-shrink-0 p-4 md:p-5 rounded-xl md:rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-110' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={18} className="md:w-5 md:h-5" /></button>
                      </div>
                    ))}
                  </div>
-                 
-                 {/* Instruction Box */}
-                 {currentPatientRecord.treatment && (
-                   <div className="mt-4 p-7 bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] shadow-inner animate-in slide-in-from-bottom-4 duration-500">
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><RefreshCcw size={16} /></div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Instruction</h4>
-                      </div>
-                      <p className="text-slate-300 font-bold leading-relaxed">{currentPatientRecord.treatment}</p>
-                      {currentPatientRecord.treatment.toLowerCase().includes('continue') && (
-                        <div className="mt-4 flex items-center gap-2 text-emerald-400 font-black text-[10px] uppercase tracking-tighter">
-                          <CheckCircle2 size={12} /> Cycle Duration: 30 Days (Standard Continuity)
-                        </div>
-                      )}
-                   </div>
-                 )}
                </div>
 
-               {currentPatientRecord.investigationsAdvised && currentPatientRecord.investigationsAdvised.trim().length > 0 && (
-                 <div className="bg-amber-600/10 border border-amber-500/20 p-8 rounded-[3.5rem] space-y-6 shadow-2xl animate-in slide-in-from-top duration-500">
+               {currentPatientRecord.investigationsAdvised && (
+                 <div className="bg-amber-600/10 border border-amber-500/20 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] space-y-6 shadow-2xl">
                     <div className="flex items-center gap-4">
-                       <div className="w-16 h-16 bg-amber-500 rounded-[2rem] flex items-center justify-center text-white"><TestTube size={32} /></div>
+                       <div className="w-12 h-12 md:w-16 md:h-16 bg-amber-500 rounded-xl md:rounded-[2rem] flex items-center justify-center text-white"><TestTube size={24} className="md:w-8 md:h-8" /></div>
                        <div>
-                          <h3 className="text-2xl font-black text-white uppercase tracking-tight">Prescribed Investigations</h3>
-                          <p className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Partner Lab Connect</p>
+                          <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Prescribed Labs</h3>
+                          <p className="text-[8px] md:text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Partner Lab Connect</p>
                        </div>
                     </div>
-                    <div className="p-7 bg-slate-900/50 rounded-[2rem] border border-white/5 shadow-inner">
-                       <p className="text-lg text-slate-300 font-bold italic">"{currentPatientRecord.investigationsAdvised}"</p>
-                    </div>
-                    <button onClick={handlePartnerLabConnect} className="w-full bg-amber-600 text-white py-9 rounded-full font-black text-xl flex items-center justify-center gap-4 shadow-lg uppercase tracking-widest hover:bg-amber-500">
-                       <Truck size={32} /> CONNECT PARTNER LAB
+                    <button onClick={handlePartnerLabConnect} className="w-full bg-amber-600 text-white py-6 md:py-9 rounded-full font-black text-lg md:text-xl flex items-center justify-center gap-3 md:gap-4 shadow-lg uppercase tracking-widest">
+                       <Truck size={24} className="md:w-8 md:h-8" /> CONNECT LAB
                     </button>
                  </div>
                )}
-
-               <div className="px-4">
-                  <a href="https://obe-cure.vercel.app/" target="_blank" rel="noopener noreferrer" className="w-full bg-white text-slate-950 py-10 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 shadow-2xl border-2 border-orange-100 uppercase tracking-tight">your obesity with us</a>
-               </div>
             </div>
           )}
           
-          <div className="fixed bottom-10 right-8 z-[60]">
-             <button onClick={() => setShowEmergencyDialog(true)} className="w-24 h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 animate-pulse border-4 border-white/20">
-                <Siren className="w-12 h-12" />
+          <div className="fixed bottom-6 md:bottom-10 right-6 md:right-8 z-[60]">
+             <button onClick={() => setShowEmergencyDialog(true)} className="w-20 h-20 md:w-24 md:h-24 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 animate-pulse border-4 border-white/20">
+                <Siren className="w-10 h-10 md:w-12 md:h-12" />
               </button>
           </div>
         </div>
       )}
 
-      {/* Patient Settings Modal */}
-      {showPatientSettings && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-md space-y-10 shadow-2xl">
+      {/* Vitals Form Modal */}
+      {showVitalsForm && (
+        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-4 md:p-6 animate-in fade-in zoom-in duration-300 overflow-y-auto">
+          <div className="bg-[#101726] border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] w-full max-w-xl space-y-8 md:space-y-10 my-auto shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
-                <Settings className="text-blue-500" /> Patient Settings
+              <h3 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3 uppercase tracking-tighter">
+                <Activity className="text-emerald-500" /> Daily Vitals
               </h3>
-              <button onClick={() => setShowPatientSettings(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 hover:text-white"><XCircle size={28} /></button>
+              <button onClick={() => { setShowVitalsForm(false); setEditingVitalId(null); setVitalsFormData({ bp: '', temp: '', spo2: '', hr: '', rbs: '', weight: '', waist: '' }); }} className="p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white"><XCircle size={24} /></button>
             </div>
             
-            <div className="space-y-6">
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Relative Contact Number</label>
-                 <input 
-                   type="text" 
-                   value={relativeNumber} 
-                   onChange={e => handleSaveRelativeNumber(e.target.value)} 
-                   placeholder="91xxxxxxxxxx"
-                   className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black outline-none focus:border-blue-500" 
-                 />
-                 <p className="text-[10px] text-slate-600 font-bold ml-4">Include country code (e.g., 91 for India)</p>
-               </div>
-               
-               <div className="bg-blue-600/10 p-6 rounded-[2rem] border border-blue-500/20">
-                 <p className="text-xs text-blue-400 font-bold leading-relaxed">Vitals logs will be shared automatically with both your Doctor and this relative via WhatsApp when you save them.</p>
-               </div>
+            <div className="grid grid-cols-2 gap-4 md:gap-6">
+              {[
+                { label: 'B.P.', key: 'bp', icon: <Activity size={16} />, color: 'text-blue-400' },
+                { label: 'Temp', key: 'temp', icon: <Thermometer size={16} />, color: 'text-rose-400' },
+                { label: 'SpO2', key: 'spo2', icon: <Check size={16} />, color: 'text-emerald-400' },
+                { label: 'Pulse', key: 'hr', icon: <HeartPulse size={16} />, color: 'text-rose-500' },
+                { label: 'Sugar', key: 'rbs', icon: <Activity size={16} />, color: 'text-amber-400' },
+                { label: 'Weight', key: 'weight', icon: <Scale size={16} />, color: 'text-purple-400' },
+              ].map(field => (
+                <div key={field.key} className="space-y-1">
+                  <label className={`text-[9px] font-black ${field.color} uppercase ml-2 flex items-center gap-1`}>{field.icon} {field.label}</label>
+                  <input type="text" value={(vitalsFormData as any)[field.key]} onChange={e => setVitalsFormData({...vitalsFormData, [field.key]: e.target.value})} className="w-full bg-[#161e31] p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-emerald-500" />
+                </div>
+              ))}
             </div>
 
-            <button 
-              onClick={() => setShowPatientSettings(false)} 
-              className="w-full bg-blue-600 text-white py-8 rounded-full font-black text-xl active:scale-95 transition-all shadow-xl uppercase tracking-widest"
-            >
-               DONE
+            <button onClick={handleSaveVitals} className="w-full bg-emerald-600 text-white py-6 md:py-9 rounded-full font-black text-xl md:text-2xl active:scale-95 transition-all shadow-xl uppercase tracking-widest flex items-center justify-center gap-4">
+               <CheckCircle2 size={24} className="md:w-8 md:h-8" /> SAVE & SHARE
             </button>
           </div>
         </div>
       )}
 
-      {/* Daily Vitals Entry Form Modal */}
-      {showVitalsForm && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300 overflow-y-auto">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-xl space-y-10 my-auto shadow-2xl">
-            <div className="flex justify-between items-center">
-              <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
-                <Activity className="text-emerald-500" /> {editingVitalId ? 'Edit Vitals' : 'Daily Vitals'}
-              </h3>
-              <button onClick={() => { setShowVitalsForm(false); setEditingVitalId(null); setVitalsFormData({ bp: '', temp: '', spo2: '', hr: '', rbs: '', weight: '', waist: '' }); }} className="p-4 bg-white/5 rounded-2xl text-slate-500 hover:text-white"><XCircle size={28} /></button>
+      {/* Emergency Dialog */}
+      {showEmergencyDialog && (
+        <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-6 animate-in fade-in duration-300">
+          <div className="bg-[#0f172a] border-2 border-white/10 p-8 md:p-10 rounded-[3.5rem] md:rounded-[5rem] w-full max-w-md space-y-8 md:space-y-10 shadow-2xl relative overflow-hidden">
+            <div className="text-center space-y-4 md:space-y-6 relative z-10">
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-rose-600/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse">
+                <Siren className="w-10 h-10 md:w-12 md:h-12 text-rose-500" />
+              </div>
+              <h3 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">SOS Alert</h3>
+              <p className="text-slate-500 font-bold text-base md:text-lg">Deploy emergency medical support?</p>
             </div>
-            
-            <div className="grid grid-cols-2 gap-6">
-              {[
-                { label: 'B.P. (mmHg)', key: 'bp', icon: <Activity size={18} />, color: 'text-blue-400' },
-                { label: 'Temp (°F)', key: 'temp', icon: <Thermometer size={18} />, color: 'text-rose-400' },
-                { label: 'SpO2 (%)', key: 'spo2', icon: <Check size={18} />, color: 'text-emerald-400' },
-                { label: 'Pulse (bpm)', key: 'hr', icon: <HeartPulse size={18} />, color: 'text-rose-500' },
-                { label: 'Sugar (RBS)', key: 'rbs', icon: <Activity size={18} />, color: 'text-amber-400' },
-                { label: 'Weight (kg)', key: 'weight', icon: <Scale size={18} />, color: 'text-purple-400' },
-                { label: 'Waist (inch)', key: 'waist', icon: <Ruler size={18} />, color: 'text-indigo-400' },
-              ].map(field => (
-                <div key={field.key} className="space-y-2">
-                  <label className={`text-[10px] font-black ${field.color} uppercase ml-2 flex items-center gap-2`}>{field.icon} {field.label}</label>
-                  <input 
-                    type="text" 
-                    value={(vitalsFormData as any)[field.key]} 
-                    onChange={e => setVitalsFormData({...vitalsFormData, [field.key]: e.target.value})} 
-                    className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black text-center outline-none focus:border-emerald-500" 
-                  />
-                </div>
-              ))}
+            <div className="grid gap-3 md:gap-4 relative z-10">
+              <button onClick={handleVideoConsultation} className="w-full p-6 md:p-8 bg-blue-600/10 border-2 border-blue-500/30 text-white rounded-full font-black uppercase text-lg md:text-xl active:scale-95 transition-all shadow-xl flex flex-col items-center justify-center">
+                 <div className="flex items-center gap-2"><Video size={20} className="text-blue-400" /><span>Video Call</span></div>
+                 <span className="text-[10px] font-black text-blue-500/70 tracking-widest mt-1">Fee: ₹499</span>
+              </button>
+              <button onClick={() => handleEmergencyAction('ambulance')} className="w-full p-6 md:p-9 bg-rose-600 text-white rounded-full font-black uppercase text-xl md:text-2xl active:scale-95 transition-all shadow-2xl">Ambulance SOS</button>
+              <button onClick={() => handleEmergencyAction('doctor')} className="w-full p-6 md:p-9 bg-blue-600 text-white rounded-full font-black uppercase text-xl md:text-2xl active:scale-95 transition-all shadow-2xl">Urgent Doctor</button>
+              <button onClick={() => setShowEmergencyDialog(false)} className="w-full p-2 text-slate-600 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
 
-            <button 
-              onClick={handleSaveVitals} 
-              className="w-full bg-emerald-600 text-white py-9 rounded-full font-black text-2xl active:scale-95 transition-all shadow-xl uppercase tracking-widest flex items-center justify-center gap-4"
-            >
-               <CheckCircle2 size={32} /> {editingVitalId ? 'UPDATE LOG' : 'SAVE & SHARE'}
-            </button>
+      {/* Payment QR Modal */}
+      {showPaymentQR && (
+        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4 md:p-6 animate-in zoom-in duration-300">
+          <div className="bg-[#101726] border border-white/10 p-8 md:p-10 rounded-[3rem] md:rounded-[4rem] w-full max-w-md space-y-8 md:space-y-10 shadow-2xl">
+            <div className="flex justify-between items-center"><h3 className="text-2xl md:text-3xl font-black text-white">Clinical Payment</h3><button onClick={() => setShowPaymentQR(false)} className="p-3 bg-white/5 rounded-xl text-slate-500 shadow-xl"><XCircle size={24} /></button></div>
+            <div className="bg-white p-4 md:p-6 rounded-[2.5rem] md:rounded-[3rem] aspect-square overflow-hidden shadow-2xl flex items-center justify-center border-4 md:border-8 border-slate-950">
+              <img src="https://lh3.googleusercontent.com/d/14Ax9aU31Gaja2kAvnLbIFLbhbbAiB4D5" alt="Payment QR" className="w-full h-full object-contain" />
+            </div>
+            <div className="text-center space-y-2"><p className="text-emerald-400 font-black text-4xl md:text-5xl tracking-tighter">₹{formData.serviceCharge}</p><p className="text-slate-500 font-bold text-[10px] md:text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical session</p></div>
+            <button onClick={() => { window.location.href = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${formData.serviceCharge}&cu=INR`; }} className="w-full bg-emerald-600 text-white py-6 md:py-9 rounded-full font-black text-xl md:text-2xl shadow-lg uppercase tracking-widest">Open UPI App</button>
           </div>
         </div>
       )}
@@ -890,12 +971,11 @@ const App: React.FC = () => {
       {/* Vitals History Modal */}
       {showVitalsHistory && (
         <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-300 overflow-y-auto">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl">
+          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl my-auto">
             <div className="flex justify-between items-center mb-10 shrink-0">
                <h3 className="text-4xl font-black text-white tracking-tighter flex items-center gap-6"><History className="text-blue-500" /> Vitals History</h3>
                <button onClick={() => setShowVitalsHistory(false)} className="p-6 bg-white/5 rounded-3xl text-slate-500 hover:text-white"><XCircle size={32} /></button>
             </div>
-            
             <div className="flex-1 overflow-y-auto pr-4 space-y-6">
               {vitalsHistory.length === 0 ? (
                 <div className="text-center py-20 text-slate-700 font-black uppercase tracking-widest italic opacity-50">No Vitals Logged Yet</div>
@@ -928,71 +1008,33 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {showEmergencyDialog && (
-        <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="bg-[#0f172a] border-2 border-white/10 p-10 rounded-[5rem] w-full max-w-md space-y-10 shadow-2xl relative overflow-hidden">
-            <div className="text-center space-y-6 relative z-10">
-              <div className="w-24 h-24 bg-rose-600/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                <Siren className="w-12 h-12 text-rose-500" />
-              </div>
-              <h3 className="text-4xl font-black text-white uppercase tracking-tighter">SOS Alert</h3>
-              <p className="text-slate-500 font-bold text-lg">Deploy emergency medical support?</p>
-            </div>
-
-            <div className="grid gap-4 relative z-10">
-              <button 
-                onClick={handleVideoConsultation} 
-                className="w-full p-8 bg-blue-600/10 border-2 border-blue-500/30 text-white rounded-full font-black uppercase text-xl active:scale-95 transition-all shadow-xl flex flex-col items-center justify-center group"
-              >
-                 <div className="flex items-center gap-3">
-                    <Video size={24} className="text-blue-400" />
-                    <span>Video Consultation</span>
-                 </div>
-                 <span className="text-xs font-black text-blue-500/70 tracking-widest mt-1 opacity-100 group-hover:text-blue-400 transition-colors">Fee: ₹499</span>
-              </button>
-
-              <button 
-                onClick={() => handleEmergencyAction('ambulance')} 
-                className="w-full p-9 bg-rose-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 transition-all shadow-2xl border border-rose-400/20"
-              >
-                Ambulance SOS
-              </button>
-              
-              <button 
-                onClick={() => handleEmergencyAction('doctor')} 
-                className="w-full p-9 bg-blue-600 text-white rounded-full font-black uppercase text-2xl active:scale-95 transition-all shadow-2xl border border-blue-400/20"
-              >
-                Urgent Doctor
-              </button>
-              
-              <button 
-                onClick={() => setShowEmergencyDialog(false)} 
-                className="w-full p-4 text-slate-600 font-black uppercase text-xs tracking-widest hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div className="absolute top-0 left-0 w-full h-full bg-rose-600/5 pointer-events-none animate-pulse"></div>
-          </div>
-        </div>
-      )}
-
-      {showPaymentQR && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6 animate-in zoom-in duration-300">
+      {/* Patient Settings Modal */}
+      {showPatientSettings && (
+        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
           <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-md space-y-10 shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="text-3xl font-black text-white">Clinical Payment</h3>
-              <button onClick={() => setShowPaymentQR(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 shadow-xl"><XCircle size={24} /></button>
+              <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
+                <Settings className="text-blue-500" /> Patient Settings
+              </h3>
+              <button onClick={() => setShowPatientSettings(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 hover:text-white"><XCircle size={28} /></button>
             </div>
-            <div className="bg-white p-6 rounded-[3rem] aspect-square overflow-hidden shadow-2xl flex items-center justify-center border-8 border-slate-950">
-              <img src="https://lh3.googleusercontent.com/d/14Ax9aU31Gaja2kAvnLbIFLbhbbAiB4D5" alt="Payment QR" className="w-full h-full object-contain" />
+            <div className="space-y-6">
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Relative Contact Number</label>
+                 <input 
+                   type="text" 
+                   value={relativeNumber} 
+                   onChange={e => handleSaveRelativeNumber(e.target.value)} 
+                   placeholder="91xxxxxxxxxx"
+                   className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black outline-none focus:border-blue-500 transition-all placeholder:text-slate-800" 
+                 />
+                 <p className="text-[10px] text-slate-600 font-bold ml-4">Include country code (e.g., 91 for India)</p>
+               </div>
+               <div className="bg-blue-600/10 p-6 rounded-[2rem] border border-blue-500/20">
+                 <p className="text-xs text-blue-400 font-bold leading-relaxed">Vitals logs will be shared automatically with both your Doctor and this relative via WhatsApp when you save them.</p>
+               </div>
             </div>
-            <div className="text-center space-y-3">
-              <p className="text-emerald-400 font-black text-5xl tracking-tighter">₹{formData.serviceCharge}</p>
-              <p className="text-slate-500 font-bold text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical session</p>
-            </div>
-            <button onClick={() => { window.location.href = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${formData.serviceCharge}&cu=INR`; }} className="w-full bg-emerald-600 text-white py-9 rounded-full font-black text-2xl shadow-lg uppercase tracking-widest">Open UPI App</button>
+            <button onClick={() => setShowPatientSettings(false)} className="w-full bg-blue-600 text-white py-8 rounded-full font-black text-xl active:scale-95 transition-all shadow-xl uppercase tracking-widest">DONE</button>
           </div>
         </div>
       )}
