@@ -4,9 +4,9 @@ import {
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video, Cloud
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video, Cloud, Building2
 } from 'lucide-react';
-import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES, APPS_SCRIPT_URL } from './constants';
+import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES, APPS_SCRIPT_URL, CONSULTANTS_DATABASE } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem, SavedVisit } from './types';
 import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
@@ -50,6 +50,7 @@ const App: React.FC = () => {
   // Doctor Hub State
   const [showVisitHistory, setShowVisitHistory] = useState(false);
   const [savedVisits, setSavedVisits] = useState<SavedVisit[]>([]);
+  const [showConsultantList, setShowConsultantList] = useState(false);
 
   // Doctor Form State
   const initialFormState: VisitData = {
@@ -63,7 +64,8 @@ const App: React.FC = () => {
     followup: 'No', followupDate: '', whatsappNumber: '',
     serviceCharge: 0, quantity: 1, pdfColor: 'white', serviceName: 'Standard Consultation',
     photos: [],
-    treatingDoctor: ''
+    consultantName: '',
+    consultantLogo: ''
   };
 
   const [formData, setFormData] = useState<VisitData>(initialFormState);
@@ -72,6 +74,7 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
   const icdRef = useRef<HTMLDivElement>(null);
+  const consultantRef = useRef<HTMLDivElement>(null);
 
   // Sync manual patient info to storage
   useEffect(() => {
@@ -126,6 +129,9 @@ const App: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (icdRef.current && !icdRef.current.contains(event.target as Node)) {
         setIcdSuggestions([]);
+      }
+      if (consultantRef.current && !consultantRef.current.contains(event.target as Node)) {
+        setShowConsultantList(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -334,6 +340,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleConsultantSelection = (entry: any) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      consultantName: entry.name, 
+      consultantLogo: entry.logo 
+    }));
+    setShowConsultantList(false);
+  };
+
   const toggleAdvice = (id: string) => {
     setAdviceStatus(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -396,6 +411,7 @@ const App: React.FC = () => {
         contactNumber: finalData.contactNumber,
         diagnosis: finalData.provisionalDiagnosis,
         staffName: finalData.staffName,
+        consultant: finalData.consultantName,
         location: userLocation ? `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}` : 'N/A'
       }).finally(() => setIsSyncing(false));
 
@@ -433,6 +449,25 @@ const App: React.FC = () => {
       if (opt) label = opt.label;
     });
     setFormData(prev => ({ ...prev, serviceCharge: value, serviceName: label || prev.serviceName }));
+  };
+
+  // Helper to parse Chronic Medications from treatment plan
+  const parseChronicMeds = (treatment: string) => {
+    if (!treatment) return [];
+    const lines = treatment.split('\n');
+    const startIndex = lines.findIndex(l => l.toLowerCase().includes('continue'));
+    if (startIndex === -1) return [];
+    return lines.slice(startIndex + 1).filter(l => l.trim() !== '' && !l.toLowerCase().includes('chronic medication'));
+  };
+
+  // Logic to map timing text to specific hour labels
+  const getMappedDisplayTime = (text: string) => {
+    const low = text.toLowerCase();
+    if (low.includes('after dinner') || low.includes('once a night')) return '10:00 PM';
+    if (low.includes('once a morning') || low.includes('once daily morning')) return '08:00 AM';
+    if (low.includes('two times a day')) return '09:00 AM & 09:00 PM';
+    if (low.includes('before breakfast')) return '07:00 AM';
+    return '';
   };
 
   if (isBooting) {
@@ -568,9 +603,40 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Referral / Treating Doctor Name</label>
-                <input type="text" value={formData.treatingDoctor} onChange={e => setFormData({...formData, treatingDoctor: e.target.value})} placeholder="Enter name of physician" className="w-full bg-[#161e31] border border-blue-500/10 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-lg md:text-xl font-bold text-white focus:border-blue-500 outline-none" />
+              <div className="space-y-2 relative" ref={consultantRef}>
+                <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Consultant (Doctor/Hospital)</label>
+                <div className="relative group">
+                   <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500"><Building2 size={20} /></div>
+                   <input 
+                     type="text" 
+                     value={formData.consultantName} 
+                     onFocus={() => setShowConsultantList(true)}
+                     onChange={e => setFormData({...formData, consultantName: e.target.value, consultantLogo: ''})} 
+                     placeholder="Enter name or click to select" 
+                     className="w-full bg-[#161e31] border border-blue-500/10 p-5 md:p-8 pl-14 md:pl-16 rounded-[1.5rem] md:rounded-[2.5rem] text-lg md:text-xl font-bold text-white focus:border-blue-500 outline-none" 
+                   />
+                   {formData.consultantLogo && (
+                     <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/10 p-2 rounded-xl">
+                        <img src={formData.consultantLogo} className="w-8 h-8 object-contain" />
+                     </div>
+                   )}
+                </div>
+                {showConsultantList && (
+                  <div className="absolute z-[110] top-full left-0 right-0 mt-3 bg-[#161e31] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                    {CONSULTANTS_DATABASE.map((entry, idx) => (
+                      <button key={idx} type="button" onClick={() => handleConsultantSelection(entry)} className="w-full text-left p-6 px-8 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors flex justify-between items-center group">
+                        <div className="flex items-center gap-4">
+                          {entry.logo ? <img src={entry.logo} className="w-10 h-10 object-contain" /> : <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-600"><User size={20} /></div>}
+                          <div>
+                            <p className="text-white font-black">{entry.name}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{entry.hospital}</p>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-700" />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -846,33 +912,78 @@ const App: React.FC = () => {
                  </div>
                )}
 
-               <div className="bg-[#101726] border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] space-y-6 md:space-y-8 shadow-2xl">
-                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               {/* Medication Plan with Segmented Lists (Recently Prescribed vs Chronic) */}
+               <div className="bg-[#101726] border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] space-y-8 md:space-y-10 shadow-2xl">
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
                     <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tight"><Pill className="text-blue-500" /> Medication Plan</h3>
-                    <button onClick={handleMedicineOrder} className="w-full sm:w-auto p-3 md:p-4 bg-emerald-600 text-white rounded-xl md:rounded-2xl active:scale-90 shadow-lg flex items-center justify-center gap-2 font-black text-[10px] md:text-xs">
-                      <ShoppingCart size={16} className="md:w-18 md:h-18" /> PLACE ORDER
+                    <button onClick={handleMedicineOrder} className="w-full sm:w-auto p-4 md:p-5 bg-emerald-600 text-white rounded-2xl active:scale-95 shadow-xl flex items-center justify-center gap-3 font-black text-xs uppercase tracking-widest">
+                      <ShoppingCart size={20} /> PLACE ORDER
                     </button>
                  </div>
-                 <div className="grid gap-3 md:gap-4">
-                   {currentPatientRecord.medications.map(med => (
-                     <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-5 md:p-7 rounded-[1.5rem] md:rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
-                        <div className="flex gap-4 md:gap-6 items-center overflow-hidden">
-                          <div className={`flex-shrink-0 p-3 md:p-4 rounded-xl md:rounded-2xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'} transition-all`}>
-                            <Check size={20} strokeWidth={4} className="md:w-6 md:h-6" />
+
+                 {/* Recently Prescribed (Rx) */}
+                 <div className="space-y-4">
+                   <div className="flex items-center gap-2 px-4">
+                     <Clock size={14} className="text-blue-500" />
+                     <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Newly Prescribed (Rx)</h4>
+                   </div>
+                   <div className="grid gap-3 md:gap-4">
+                     {currentPatientRecord.medications.map(med => (
+                       <div key={med.id} onClick={() => toggleMed(med.id)} className={`p-5 md:p-7 rounded-[1.5rem] md:rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[med.id] ? 'bg-emerald-500/10 border-emerald-500/30 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
+                          <div className="flex gap-4 md:gap-6 items-center overflow-hidden">
+                            <div className={`flex-shrink-0 p-3 md:p-4 rounded-xl md:rounded-2xl ${medsStatus[med.id] ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-500'} transition-all`}>
+                              <Check size={20} strokeWidth={4} className="md:w-6 md:h-6" />
+                            </div>
+                            <div className="truncate">
+                              <p className={`text-lg md:text-2xl font-black truncate ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'}`}>{med.name}</p>
+                              <p className="text-[10px] md:text-xs font-black text-blue-500 uppercase tracking-widest mt-1">
+                                  {med.timing} • {med.dose} 
+                                  {getMappedDisplayTime(med.timing) && <span className="ml-2 px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20 text-blue-400">🕒 {getMappedDisplayTime(med.timing)}</span>}
+                              </p>
+                            </div>
                           </div>
-                          <div className="truncate">
-                            <p className={`text-lg md:text-2xl font-black truncate ${medsStatus[med.id] ? 'text-slate-500 line-through' : 'text-white'}`}>{med.name}</p>
-                            <p className="text-[10px] md:text-xs font-black text-blue-500 uppercase tracking-widest mt-1">{med.timing} • {med.dose}</p>
-                          </div>
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); }} className={`flex-shrink-0 p-4 md:p-5 rounded-xl md:rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-110' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={18} className="md:w-5 md:h-5" /></button>
-                     </div>
-                   ))}
+                          <button onClick={(e) => { e.stopPropagation(); }} className={`flex-shrink-0 p-4 md:p-5 rounded-xl md:rounded-2xl border transition-all ${reminders[med.id] ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-110' : 'bg-white/5 border-white/10 text-slate-600'}`}><Bell size={18} className="md:w-5 md:h-5" /></button>
+                       </div>
+                     ))}
+                   </div>
                  </div>
+
+                 {/* Chronic Medications (Parsed from Treatment) */}
+                 {parseChronicMeds(currentPatientRecord.treatment).length > 0 && (
+                   <div className="space-y-4 pt-4 border-t border-white/5">
+                     <div className="flex items-center gap-2 px-4">
+                       <ShieldAlert size={14} className="text-rose-500" />
+                       <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Chronic Medication</h4>
+                     </div>
+                     <div className="grid gap-3 md:gap-4">
+                        {parseChronicMeds(currentPatientRecord.treatment).map((medLine, idx) => {
+                          const medId = `chronic-${idx}`;
+                          const timingLabel = getMappedDisplayTime(medLine);
+                          return (
+                            <div key={medId} onClick={() => toggleMed(medId)} className={`p-5 md:p-7 rounded-[1.5rem] md:rounded-[2.5rem] border transition-all cursor-pointer flex justify-between items-center shadow-lg ${medsStatus[medId] ? 'bg-rose-500/10 border-rose-500/30 opacity-60' : 'bg-[#161e31] border-white/5'}`}>
+                               <div className="flex gap-4 md:gap-6 items-center overflow-hidden">
+                                  <div className={`flex-shrink-0 p-3 md:p-4 rounded-xl md:rounded-2xl ${medsStatus[medId] ? 'bg-rose-500 text-white' : 'bg-white/10 text-slate-500'} transition-all`}>
+                                    <Check size={20} strokeWidth={4} className="md:w-6 md:h-6" />
+                                  </div>
+                                  <div className="truncate">
+                                    <p className={`text-lg md:text-xl font-black truncate ${medsStatus[medId] ? 'text-slate-500 line-through' : 'text-white'}`}>{medLine}</p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <span className="text-[8px] font-black text-rose-500 uppercase bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/10">LONG-TERM CARE</span>
+                                      {timingLabel && <span className="text-[8px] font-black text-blue-400 uppercase bg-blue-400/10 px-3 py-1 rounded-full border border-blue-400/10">🕒 {timingLabel}</span>}
+                                    </div>
+                                  </div>
+                               </div>
+                            </div>
+                          );
+                        })}
+                     </div>
+                   </div>
+                 )}
                </div>
 
+               {/* Prescribed Labs Display */}
                {currentPatientRecord.investigationsAdvised && (
-                 <div className="bg-amber-600/10 border border-amber-500/20 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] space-y-6 shadow-2xl">
+                 <div className="bg-amber-600/10 border border-amber-500/20 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] space-y-6 shadow-2xl animate-in slide-in-from-top duration-500">
                     <div className="flex items-center gap-4">
                        <div className="w-12 h-12 md:w-16 md:h-16 bg-amber-500 rounded-xl md:rounded-[2rem] flex items-center justify-center text-white"><TestTube size={24} className="md:w-8 md:h-8" /></div>
                        <div>
@@ -880,6 +991,13 @@ const App: React.FC = () => {
                           <p className="text-[8px] md:text-[10px] font-black text-amber-500/80 uppercase tracking-widest">Partner Lab Connect</p>
                        </div>
                     </div>
+                    
+                    <div className="p-6 md:p-8 bg-slate-900/50 rounded-[2rem] border border-white/5 shadow-inner">
+                        <p className="text-base md:text-lg text-slate-300 font-bold leading-relaxed whitespace-pre-wrap">
+                            {currentPatientRecord.investigationsAdvised}
+                        </p>
+                    </div>
+
                     <button onClick={handlePartnerLabConnect} className="w-full bg-amber-600 text-white py-6 md:py-9 rounded-full font-black text-lg md:text-xl flex items-center justify-center gap-3 md:gap-4 shadow-lg uppercase tracking-widest">
                        <Truck size={24} className="md:w-8 md:h-8" /> CONNECT LAB
                     </button>
@@ -964,77 +1082,6 @@ const App: React.FC = () => {
             </div>
             <div className="text-center space-y-2"><p className="text-emerald-400 font-black text-4xl md:text-5xl tracking-tighter">₹{formData.serviceCharge}</p><p className="text-slate-500 font-bold text-[10px] md:text-sm uppercase tracking-widest opacity-60">Scan to finalize clinical session</p></div>
             <button onClick={() => { window.location.href = `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${formData.serviceCharge}&cu=INR`; }} className="w-full bg-emerald-600 text-white py-6 md:py-9 rounded-full font-black text-xl md:text-2xl shadow-lg uppercase tracking-widest">Open UPI App</button>
-          </div>
-        </div>
-      )}
-
-      {/* Vitals History Modal */}
-      {showVitalsHistory && (
-        <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-300 overflow-y-auto">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl my-auto">
-            <div className="flex justify-between items-center mb-10 shrink-0">
-               <h3 className="text-4xl font-black text-white tracking-tighter flex items-center gap-6"><History className="text-blue-500" /> Vitals History</h3>
-               <button onClick={() => setShowVitalsHistory(false)} className="p-6 bg-white/5 rounded-3xl text-slate-500 hover:text-white"><XCircle size={32} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto pr-4 space-y-6">
-              {vitalsHistory.length === 0 ? (
-                <div className="text-center py-20 text-slate-700 font-black uppercase tracking-widest italic opacity-50">No Vitals Logged Yet</div>
-              ) : vitalsHistory.map(log => (
-                <div key={log.id} className="bg-[#161e31] border border-white/5 p-8 rounded-[3rem] space-y-6 shadow-xl relative group">
-                   <div className="flex justify-between items-center">
-                     <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 px-6 py-2 rounded-full uppercase tracking-widest">{log.timestamp}</span>
-                     <button onClick={() => handleEditVital(log)} className="p-3 bg-white/5 rounded-full text-slate-500 hover:text-blue-400 hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"><Pencil size={18} /></button>
-                   </div>
-                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      {[
-                        { l: 'BP', v: log.bp, c: 'text-blue-400' },
-                        { l: 'TEMP', v: log.temp, c: 'text-rose-400' },
-                        { l: 'SpO2', v: log.spo2, c: 'text-emerald-400' },
-                        { l: 'HR', v: log.hr, c: 'text-rose-600' },
-                        { l: 'RBS', v: log.rbs, c: 'text-amber-400' },
-                        { l: 'WT', v: log.weight, c: 'text-purple-400' },
-                        { l: 'WAIST', v: log.waist, c: 'text-indigo-400' }
-                      ].map(item => (
-                        <div key={item.l} className="text-center p-3 bg-slate-900/50 rounded-2xl border border-white/5 shadow-inner">
-                           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{item.l}</p>
-                           <p className={`text-lg font-black ${item.c}`}>{item.v || '--'}</p>
-                        </div>
-                      ))}
-                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Patient Settings Modal */}
-      {showPatientSettings && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-          <div className="bg-[#101726] border border-white/10 p-10 rounded-[4rem] w-full max-w-md space-y-10 shadow-2xl">
-            <div className="flex justify-between items-center">
-              <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter">
-                <Settings className="text-blue-500" /> Patient Settings
-              </h3>
-              <button onClick={() => setShowPatientSettings(false)} className="p-4 bg-white/5 rounded-2xl text-slate-500 hover:text-white"><XCircle size={28} /></button>
-            </div>
-            <div className="space-y-6">
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Relative Contact Number</label>
-                 <input 
-                   type="text" 
-                   value={relativeNumber} 
-                   onChange={e => handleSaveRelativeNumber(e.target.value)} 
-                   placeholder="91xxxxxxxxxx"
-                   className="w-full bg-[#161e31] p-6 rounded-[2rem] border border-white/5 text-white font-black outline-none focus:border-blue-500 transition-all placeholder:text-slate-800" 
-                 />
-                 <p className="text-[10px] text-slate-600 font-bold ml-4">Include country code (e.g., 91 for India)</p>
-               </div>
-               <div className="bg-blue-600/10 p-6 rounded-[2rem] border border-blue-500/20">
-                 <p className="text-xs text-blue-400 font-bold leading-relaxed">Vitals logs will be shared automatically with both your Doctor and this relative via WhatsApp when you save them.</p>
-               </div>
-            </div>
-            <button onClick={() => setShowPatientSettings(false)} className="w-full bg-blue-600 text-white py-8 rounded-full font-black text-xl active:scale-95 transition-all shadow-xl uppercase tracking-widest">DONE</button>
           </div>
         </div>
       )}

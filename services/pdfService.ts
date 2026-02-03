@@ -1,8 +1,10 @@
+
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { VisitData } from '../types';
 
 const imageToDataUrl = async (url: string): Promise<string> => {
+  if (!url) return '';
   try {
     const response = await fetch(url);
     const blob = await response.blob();
@@ -28,15 +30,23 @@ const getImageDimensions = (file: string): Promise<{ w: number, h: number }> => 
 const drawFooter = (pdf: jsPDF) => {
   const pageHeight = 297;
   const pageWidth = 210;
-  const startY = pageHeight - 15;
+  const startY = pageHeight - 20;
 
+  // Medicolegal Disclaimer
+  pdf.setFontSize(10);
+  pdf.setTextColor(220, 38, 38); // Tailwind red-600
+  pdf.setFont("helvetica", "bold");
+  pdf.text("NOT VALID DOCUMENT FOR MEDICOLEGAL PURPOSE", pageWidth / 2, startY, { align: 'center' });
+
+  // Standard Footer Info
   pdf.setFontSize(8.5);
   pdf.setTextColor(30, 41, 59); // slate-800
   pdf.setFont("helvetica", "bold");
+  pdf.text("Your helping hands in emergency. Ahmedabad Mediclaim valid HomeCare Provider.", pageWidth / 2, startY + 5, { align: 'center' });
   
-  pdf.text("Your helping hands in emergency. Ahmedabad Mediclaim valid HomeCare Provider.", pageWidth / 2, startY, { align: 'center' });
-  pdf.text("Contact: +91 63551 37969 | +91 8200095781", pageWidth / 2, startY + 4, { align: 'center' });
-  pdf.text("Visit us at XzeCure.co.in", pageWidth / 2, startY + 8, { align: 'center' });
+  pdf.setFont("helvetica", "normal");
+  pdf.text("Contact: +91 63551 37969 | +91 8200095781", pageWidth / 2, startY + 9, { align: 'center' });
+  pdf.text("Visit us at XzeCure.co.in", pageWidth / 2, startY + 13, { align: 'center' });
 };
 
 export const generateVisitPdf = async (
@@ -45,6 +55,8 @@ export const generateVisitPdf = async (
   logoUrl: string
 ): Promise<Blob> => {
   const logoDataUrl = await imageToDataUrl(logoUrl);
+  const consultantLogoDataUrl = visitData.consultantLogo ? await imageToDataUrl(visitData.consultantLogo) : '';
+  
   const container = document.createElement('div');
   container.id = 'temp-pdf-container';
   
@@ -54,7 +66,7 @@ export const generateVisitPdf = async (
     backgroundColor: '#ffffff',
     color: '#0f172a',
     fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
-    padding: '12mm 15mm 25mm 15mm',
+    padding: '12mm 15mm 28mm 15mm', // Added padding to prevent bottom overlap
     boxSizing: 'border-box',
     position: 'absolute',
     left: '-10000px',
@@ -82,8 +94,8 @@ export const generateVisitPdf = async (
         </div>
       </div>
       
-      <!-- Patient Bio-Data -->
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
+      <!-- Patient Bio-Data & Consultant Info -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
         <div style="flex: 1;">
           <h2 style="margin: 0; font-size: 18pt; font-weight: 900; color: #0f172a; text-transform: uppercase;">${visitData.patientName}</h2>
           <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 5px; font-size: 10pt; font-weight: 700; color: #475569;">
@@ -94,8 +106,12 @@ export const generateVisitPdf = async (
               <span style="color: #cbd5e1;">|</span>
               <span>MOB: ${visitData.contactNumber}</span>
             </div>
-            <div style="margin-top: 8px; color: #1e3a8a; font-size: 10pt; font-weight: 800; text-transform: uppercase; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-              Treating/Referral Doctor: ${visitData.treatingDoctor || 'Not Specified'}
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; align-items: center; gap: 12px;">
+              ${consultantLogoDataUrl ? `<img src="${consultantLogoDataUrl}" style="width: 40px; height: 40px; object-fit: contain; background: white; border-radius: 8px; border: 1px solid #e2e8f0; padding: 2px;" />` : ''}
+              <div>
+                <div style="color: #64748b; font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Consultant</div>
+                <div style="color: #1e3a8a; font-size: 11pt; font-weight: 900;">${visitData.consultantName || 'Standard Care'}</div>
+              </div>
             </div>
           </div>
           ${visitData.address ? `<p style="margin: 8px 0 0 0; font-size: 9pt; color: #64748b; line-height: 1.4;">${visitData.address}</p>` : ''}
@@ -206,15 +222,12 @@ export const generateVisitPdf = async (
         </div>
       </div>
 
-      <!-- Financial Summary & Auth -->
-      <div style="margin-top: 40px; border-top: 3px solid #f1f5f9; padding-top: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
-        <div style="max-width: 55%;">
-          <p style="margin: 0; font-size: 9pt; color: #1e293b; font-weight: 700;"><b>Primary Service:</b> ${visitData.serviceName}</p>
-        </div>
+      <!-- Financial Summary & Auth - Simplified to Button Only -->
+      <div style="margin-top: 40px; border-top: 3px solid #f1f5f9; padding-top: 25px; display: flex; justify-content: flex-end; align-items: flex-end;">
         <div style="text-align: right;">
-          <div style="background: #10b981; color: #ffffff; padding: 15px 30px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
-            <p style="margin: 0; font-size: 8pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">Service Charge</p>
-            <p style="margin: 0; font-size: 22pt; font-weight: 900;">₹${visitData.serviceCharge}</p>
+          <div style="background: #10b981; color: #ffffff; padding: 15px 35px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+            <p style="margin: 0; font-size: 9pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">TOTAL PAYABLE</p>
+            <p style="margin: 0; font-size: 24pt; font-weight: 900;">₹${visitData.serviceCharge}</p>
           </div>
         </div>
       </div>
@@ -235,15 +248,15 @@ export const generateVisitPdf = async (
     
     pdf.setProperties({
       title: `XzeCure Report - ${visitData.patientName}`,
-      subject: btoa(unescape(encodeURIComponent(JSON.stringify(visitData)))),
+      subject: btoa(unescape(encodeURIComponent(JSON.stringify({ ...visitData, consultant: visitData.consultantName })))),
       author: 'XzeCure Clinical Hub',
       keywords: 'XzeCure, Medical Prescription'
     });
 
     // Page 1
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-    // UPI Link overlay on the fee area
-    pdf.link(140, 260, 55, 25, { url: `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${visitData.serviceCharge}&cu=INR` });
+    // UPI Link overlay on the fee area - adjusted to ensure coverage of the green button
+    pdf.link(130, 255, 65, 30, { url: `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${visitData.serviceCharge}&cu=INR` });
     drawFooter(pdf);
 
     // Attachments

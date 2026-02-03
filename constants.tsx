@@ -6,6 +6,25 @@ export const SECRET_PIN = '472892';
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE AFTER DEPLOYING
 export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_URL/exec';
 
+export interface ConsultantEntry {
+  name: string;
+  hospital: string;
+  logo: string;
+}
+
+export const CONSULTANTS_DATABASE: ConsultantEntry[] = [
+  { 
+    name: 'Dr. Samir Shah', 
+    hospital: 'Shah Multi-Speciality Hospital', 
+    logo: 'https://lh3.googleusercontent.com/d/11caZFCVGHAyQzVxQYiEcpLwmuTioNTDT' 
+  },
+  { 
+    name: 'Dr. Viral Mehta', 
+    hospital: 'City Clinic', 
+    logo: '' 
+  }
+];
+
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {
     label: "Doctor Services",

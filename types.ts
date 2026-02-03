@@ -87,7 +87,8 @@ export interface VisitData {
   pdfColor: 'white' | 'black';
   serviceName: string;
   photos: string[];
-  treatingDoctor: string;
+  consultantName: string;
+  consultantLogo: string;
 }
 
 export interface SavedVisit {
