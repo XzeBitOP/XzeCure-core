@@ -66,7 +66,7 @@ export const generateVisitPdf = async (
     backgroundColor: '#ffffff',
     color: '#0f172a',
     fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
-    padding: '12mm 15mm 28mm 15mm', // Added padding to prevent bottom overlap
+    padding: '18mm 18mm 32mm 18mm', // Increased margins to fix crunched look
     boxSizing: 'border-box',
     position: 'absolute',
     left: '-10000px',
@@ -80,25 +80,25 @@ export const generateVisitPdf = async (
   container.innerHTML = `
     <div style="height: 100%; display: flex; flex-direction: column;">
       <!-- Letterhead Header -->
-      <div style="display: flex; justify-content: space-between; border-bottom: 4px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 25px;">
-        <div style="display: flex; align-items: center; gap: 20px;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 4px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 30px;">
+        <div style="display: flex; align-items: center; gap: 24px;">
           <img src="${logoDataUrl}" style="width: 80px; height: 80px; object-fit: contain;" />
           <div>
-            <h1 style="margin: 0; font-size: 32pt; font-weight: 900; color: #1e3a8a; letter-spacing: -2px; line-height: 1;">XzeCure</h1>
+            <h1 style="margin: 0; font-size: 34pt; font-weight: 900; color: #1e3a8a; letter-spacing: -2px; line-height: 1;">XzeCure</h1>
           </div>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 14pt; font-weight: 800; color: #1e3a8a;">${visitData.staffName}</p>
-          <p style="margin: 4px 0; font-size: 9pt; color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; display: inline-block;">ID: ${visitData.visitId}</p>
+          <p style="margin: 0; font-size: 10pt; font-weight: 800; color: #1e3a8a; opacity: 0.9;">${visitData.staffName}</p>
+          <p style="margin: 6px 0; font-size: 9pt; color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 10px; border-radius: 4px; display: inline-block;">ID: ${visitData.visitId}</p>
           <p style="margin: 4px 0 0 0; font-size: 9pt; color: #64748b; font-weight: 600;">${now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
         </div>
       </div>
       
       <!-- Patient Bio-Data & Consultant Info -->
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 35px; display: flex; justify-content: space-between; align-items: flex-start;">
         <div style="flex: 1;">
-          <h2 style="margin: 0; font-size: 18pt; font-weight: 900; color: #0f172a; text-transform: uppercase;">${visitData.patientName}</h2>
-          <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 5px; font-size: 10pt; font-weight: 700; color: #475569;">
+          <h2 style="margin: 0; font-size: 18pt; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">${visitData.patientName}</h2>
+          <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 10pt; font-weight: 700; color: #475569;">
             <div style="display: flex; gap: 15px;">
               <span>AGE: ${visitData.age || '--'} Yrs</span>
               <span style="color: #cbd5e1;">|</span>
@@ -106,25 +106,25 @@ export const generateVisitPdf = async (
               <span style="color: #cbd5e1;">|</span>
               <span>MOB: ${visitData.contactNumber}</span>
             </div>
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; align-items: center; gap: 12px;">
-              ${consultantLogoDataUrl ? `<img src="${consultantLogoDataUrl}" style="width: 40px; height: 40px; object-fit: contain; background: white; border-radius: 8px; border: 1px solid #e2e8f0; padding: 2px;" />` : ''}
+            <div style="margin-top: 15px; padding-top: 12px; border-top: 2px dashed #cbd5e1; display: flex; align-items: center; gap: 16px;">
+              ${consultantLogoDataUrl ? `<img src="${consultantLogoDataUrl}" style="width: 52px; height: 52px; object-fit: contain; background: white; border-radius: 10px; border: 1px solid #e2e8f0; padding: 3px;" />` : ''}
               <div>
-                <div style="color: #64748b; font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Consultant</div>
-                <div style="color: #1e3a8a; font-size: 11pt; font-weight: 900;">${visitData.consultantName || 'Standard Care'}</div>
+                <div style="color: #64748b; font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Consulting Physician</div>
+                <div style="color: #1e3a8a; font-size: 14.5pt; font-weight: 900;">${visitData.consultantName || 'Standard Care'}</div>
               </div>
             </div>
           </div>
-          ${visitData.address ? `<p style="margin: 8px 0 0 0; font-size: 9pt; color: #64748b; line-height: 1.4;">${visitData.address}</p>` : ''}
+          ${visitData.address ? `<p style="margin: 12px 0 0 0; font-size: 9pt; color: #64748b; line-height: 1.5;">${visitData.address}</p>` : ''}
         </div>
-        <div style="text-align: right; min-width: 120px;">
-           <div style="display: inline-block; padding: 10px 20px; border: 2px solid #1e3a8a; border-radius: 50px; color: #1e3a8a; font-size: 9pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">
+        <div style="text-align: right; min-width: 140px;">
+           <div style="display: inline-block; padding: 12px 24px; border: 3px solid #1e3a8a; border-radius: 50px; color: #1e3a8a; font-size: 9.5pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">
              Clinical Report
            </div>
         </div>
       </div>
 
       <!-- Vital Signs Dashboard -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 35px;">
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 40px;">
         ${[
           {l: 'Temperature', v: visitData.vitalTemp, u: '°F', c: '#f43f5e'},
           {l: 'Blood Pressure', v: visitData.vitalBp, u: 'mmHg', c: '#3b82f6'},
@@ -135,99 +135,99 @@ export const generateVisitPdf = async (
           {l: 'Height', v: visitData.height, u: 'cm', c: '#6366f1'},
           {l: 'Body BMI', v: visitData.bmi, u: 'Score', c: '#0ea5e9'}
         ].map(vit => `
-          <div style="background: #ffffff; padding: 15px 10px; border-radius: 12px; text-align: center; border: 1px solid #f1f5f9; box-shadow: 0 2px 4px rgba(0,0,0,0.02); border-top: 4px solid ${vit.c};">
-            <div style="font-size: 7.5pt; font-weight: 800; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">${vit.l}</div>
-            <div style="font-size: 14pt; font-weight: 900; color: #1e293b; line-height: 1;">${vit.v || '--'}</div>
-            <div style="font-size: 7pt; color: ${vit.c}; font-weight: 700; margin-top: 4px;">${vit.u}</div>
+          <div style="background: #ffffff; padding: 18px 12px; border-radius: 14px; text-align: center; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-top: 5px solid ${vit.c};">
+            <div style="font-size: 7.5pt; font-weight: 800; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">${vit.l}</div>
+            <div style="font-size: 15pt; font-weight: 900; color: #1e293b; line-height: 1;">${vit.v || '--'}</div>
+            <div style="font-size: 7pt; color: ${vit.c}; font-weight: 700; margin-top: 6px;">${vit.u}</div>
           </div>
         `).join('')}
       </div>
 
       <!-- Clinical Findings -->
-      <div style="display: flex; gap: 35px; flex: 1;">
+      <div style="display: flex; gap: 40px; flex: 1;">
         <div style="flex: 2.2;">
-          <section style="margin-bottom: 30px;">
-            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <section style="margin-bottom: 35px;">
+            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
                <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0;">Clinical Assessment</h4>
-               ${visitData.duration ? `<span style="font-size: 8.5pt; font-weight: 800; color: #64748b; background: #f8fafc; padding: 2px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">${visitData.duration}</span>` : ''}
+               ${visitData.duration ? `<span style="font-size: 8.5pt; font-weight: 800; color: #64748b; background: #f8fafc; padding: 4px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">${visitData.duration}</span>` : ''}
             </div>
-            <div style="font-size: 11.5pt; line-height: 1.6; white-space: pre-wrap; color: #334155; font-weight: 500;">${visitData.complaints || 'Patient observed for standard health monitoring and care assistance.'}</div>
+            <div style="font-size: 11.5pt; line-height: 1.7; white-space: pre-wrap; color: #334155; font-weight: 500;">${visitData.complaints || 'Patient observed for standard health monitoring and care assistance.'}</div>
           </section>
 
           ${visitData.provisionalDiagnosis ? `
-          <section style="margin-bottom: 30px; background: #eff6ff; padding: 18px; border-radius: 12px; border-left: 6px solid #3b82f6;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <section style="margin-bottom: 35px; background: #eff6ff; padding: 20px; border-radius: 14px; border-left: 8px solid #3b82f6;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0;">Provisional Diagnosis</h4>
-              ${visitData.icdCode ? `<span style="font-size: 9pt; font-weight: 900; color: #ffffff; background: #3b82f6; padding: 3px 10px; border-radius: 6px;">ICD-10: ${visitData.icdCode}</span>` : ''}
+              ${visitData.icdCode ? `<span style="font-size: 9pt; font-weight: 900; color: #ffffff; background: #3b82f6; padding: 4px 12px; border-radius: 8px;">ICD-10: ${visitData.icdCode}</span>` : ''}
             </div>
-            <div style="font-size: 13pt; font-weight: 900; color: #1e293b;">${visitData.provisionalDiagnosis}</div>
+            <div style="font-size: 14pt; font-weight: 900; color: #1e293b;">${visitData.provisionalDiagnosis}</div>
           </section>` : ''}
 
           <section>
-            <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Prescribed Medications (Rx)</h4>
+            <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0 0 18px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Prescribed Medications (Rx)</h4>
             <table style="width: 100%; border-collapse: collapse;">
               <thead>
                 <tr style="background: #f8fafc; border-bottom: 2px solid #3b82f6;">
-                  <th style="padding: 12px 10px; text-align: left; font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Item Details</th>
-                  <th style="padding: 12px 10px; text-align: right; font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Frequency & Duration</th>
+                  <th style="padding: 14px 12px; text-align: left; font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Item Details</th>
+                  <th style="padding: 14px 12px; text-align: right; font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Frequency & Duration</th>
                 </tr>
               </thead>
               <tbody>
                 ${visitData.medications.length > 0 ? visitData.medications.map(m => `
                   <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 14px 10px;">
-                      <div style="font-size: 11.5pt; font-weight: 900; color: #1e3a8a;">${m.name}</div>
-                      <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px; font-weight: 600;">${m.route} | Dose: ${m.dose}</div>
+                    <td style="padding: 16px 12px;">
+                      <div style="font-size: 12pt; font-weight: 900; color: #1e3a8a;">${m.name}</div>
+                      <div style="font-size: 9pt; color: #64748b; margin-top: 4px; font-weight: 600;">${m.route} | Dose: ${m.dose}</div>
                     </td>
-                    <td style="padding: 14px 10px; text-align: right;">
-                      <div style="font-size: 11pt; font-weight: 900; color: #1e3a8a;">${m.timing}</div>
-                      <div style="font-size: 8pt; color: #3b82f6; font-weight: 800; text-transform: uppercase; margin-top: 2px;">${m.days ? `FOR ${m.days} DAYS` : 'CONTINUE'}</div>
+                    <td style="padding: 16px 12px; text-align: right;">
+                      <div style="font-size: 11.5pt; font-weight: 900; color: #1e3a8a;">${m.timing}</div>
+                      <div style="font-size: 8.5pt; color: #3b82f6; font-weight: 800; text-transform: uppercase; margin-top: 4px;">${m.days ? `FOR ${m.days} DAYS` : 'CONTINUE'}</div>
                     </td>
                   </tr>
-                `).join('') : '<tr><td colspan="2" style="padding: 30px; text-align: center; color: #94a3b8; font-style: italic; font-weight: 600;">No medications documented.</td></tr>'}
+                `).join('') : '<tr><td colspan="2" style="padding: 40px; text-align: center; color: #94a3b8; font-style: italic; font-weight: 600;">No medications documented.</td></tr>'}
               </tbody>
             </table>
           </section>
 
           ${visitData.treatment ? `
-          <section style="margin-top: 30px; margin-bottom: 30px;">
-            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
+          <section style="margin-top: 40px; margin-bottom: 40px;">
+            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">
                <h4 style="font-size: 11pt; text-transform: uppercase; font-weight: 900; color: #1e3a8a; margin: 0;">Treatment Plan / Procedures</h4>
             </div>
-            <div style="font-size: 11.5pt; line-height: 1.6; white-space: pre-wrap; color: #334155; font-weight: 500;">
+            <div style="font-size: 11.5pt; line-height: 1.7; white-space: pre-wrap; color: #334155; font-weight: 500;">
               ${visitData.treatment}
-              ${treatmentPlanIncludesContinue ? '<div style="font-size: 9pt; color: #e11d48; font-weight: 800; margin-top: 8px; text-transform: uppercase;">* Continue indicates 30 days unless specified otherwise</div>' : ''}
+              ${treatmentPlanIncludesContinue ? '<div style="font-size: 9pt; color: #e11d48; font-weight: 800; margin-top: 10px; text-transform: uppercase;">* Continue indicates 30 days unless specified otherwise</div>' : ''}
             </div>
           </section>
           ` : ''}
 
         </div>
 
-        <div style="flex: 1; border-left: 2px dashed #e2e8f0; padding-left: 25px;">
-          <section style="margin-bottom: 30px;">
-            <h4 style="font-size: 9.5pt; text-transform: uppercase; font-weight: 900; color: #b45309; border-bottom: 2px solid #ffedd5; padding-bottom: 6px; margin-bottom: 12px;">Investigations Advice</h4>
-            <div style="font-size: 10.5pt; font-weight: 800; color: #9a3412; line-height: 1.6; white-space: pre-wrap;">${visitData.investigationsAdvised || 'Routine health screening recommended.'}</div>
+        <div style="flex: 1; border-left: 2px dashed #e2e8f0; padding-left: 30px;">
+          <section style="margin-bottom: 40px;">
+            <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #b45309; border-bottom: 2px solid #ffedd5; padding-bottom: 8px; margin-bottom: 15px;">Investigations Advice</h4>
+            <div style="font-size: 10.5pt; font-weight: 800; color: #9a3412; line-height: 1.7; white-space: pre-wrap;">${visitData.investigationsAdvised || 'Routine health screening recommended.'}</div>
           </section>
 
-          <section style="margin-bottom: 30px;">
-            <h4 style="font-size: 9.5pt; text-transform: uppercase; font-weight: 900; color: #15803d; border-bottom: 2px solid #dcfce7; padding-bottom: 6px; margin-bottom: 12px;">Special Instructions</h4>
-            <div style="font-size: 9.5pt; line-height: 1.6; color: #166534; white-space: pre-wrap; font-weight: 600;">${visitData.nonMedicinalAdvice || 'Monitor vitals daily and maintain hydration.'}</div>
+          <section style="margin-bottom: 40px;">
+            <h4 style="font-size: 10pt; text-transform: uppercase; font-weight: 900; color: #15803d; border-bottom: 2px solid #dcfce7; padding-bottom: 8px; margin-bottom: 15px;">Special Instructions</h4>
+            <div style="font-size: 9.5pt; line-height: 1.7; color: #166534; white-space: pre-wrap; font-weight: 600;">${visitData.nonMedicinalAdvice || 'Monitor vitals daily and maintain hydration.'}</div>
           </section>
 
           ${visitData.followup === 'Yes' ? `
-          <div style="background: #1e3a8a; border-radius: 12px; padding: 15px; text-align: center; margin-top: 20px; box-shadow: 0 4px 6px rgba(30,58,138,0.2);">
-            <p style="margin: 0; font-size: 7.5pt; font-weight: 900; color: #bfdbfe; text-transform: uppercase; letter-spacing: 1px;">Follow-up Schedule</p>
-            <p style="margin: 6px 0 0 0; font-size: 13pt; font-weight: 900; color: #ffffff;">${visitData.followupDate}</p>
+          <div style="background: #1e3a8a; border-radius: 14px; padding: 20px; text-align: center; margin-top: 25px; box-shadow: 0 6px 12px rgba(30,58,138,0.2);">
+            <p style="margin: 0; font-size: 8pt; font-weight: 900; color: #bfdbfe; text-transform: uppercase; letter-spacing: 1.5px;">Follow-up Schedule</p>
+            <p style="margin: 8px 0 0 0; font-size: 14pt; font-weight: 900; color: #ffffff;">${visitData.followupDate}</p>
           </div>` : ''}
         </div>
       </div>
 
-      <!-- Financial Summary & Auth - Simplified to Button Only -->
-      <div style="margin-top: 40px; border-top: 3px solid #f1f5f9; padding-top: 25px; display: flex; justify-content: flex-end; align-items: flex-end;">
+      <!-- Financial Summary & Auth -->
+      <div style="margin-top: 50px; border-top: 4px solid #f1f5f9; padding-top: 30px; display: flex; justify-content: flex-end; align-items: flex-end;">
         <div style="text-align: right;">
-          <div style="background: #10b981; color: #ffffff; padding: 15px 35px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
-            <p style="margin: 0; font-size: 9pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">TOTAL PAYABLE</p>
-            <p style="margin: 0; font-size: 24pt; font-weight: 900;">₹${visitData.serviceCharge}</p>
+          <div style="background: #10b981; color: #ffffff; padding: 18px 45px; border-radius: 20px; display: inline-block; box-shadow: 0 6px 15px rgba(16,185,129,0.3);">
+            <p style="margin: 0; font-size: 10pt; font-weight: 900; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">TOTAL PAYABLE</p>
+            <p style="margin: 0; font-size: 26pt; font-weight: 900;">₹${visitData.serviceCharge}</p>
           </div>
         </div>
       </div>
@@ -255,8 +255,8 @@ export const generateVisitPdf = async (
 
     // Page 1
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-    // UPI Link overlay on the fee area - adjusted to ensure coverage of the green button
-    pdf.link(130, 255, 65, 30, { url: `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${visitData.serviceCharge}&cu=INR` });
+    // UPI Link overlay on the fee area
+    pdf.link(130, 250, 65, 30, { url: `upi://pay?pa=8200095781@pthdfc&pn=KenilShah&am=${visitData.serviceCharge}&cu=INR` });
     drawFooter(pdf);
 
     // Attachments
@@ -265,8 +265,8 @@ export const generateVisitPdf = async (
       const { w, h } = await getImageDimensions(photoUrl);
       const pageWidth = 210;
       const pageHeight = 297;
-      const margin = 15;
-      const footerSafety = 35;
+      const margin = 20; // Increased margin for photos
+      const footerSafety = 40;
       
       const maxWidth = pageWidth - (margin * 2);
       const maxHeight = pageHeight - (margin * 2) - footerSafety;
