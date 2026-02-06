@@ -57,7 +57,6 @@ export interface VisitData {
   age: string;
   gender: string;
   contactNumber: string;
-  email: string;
   address: string;
   weight: string;
   height: string;
