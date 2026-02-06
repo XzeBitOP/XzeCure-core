@@ -54,7 +54,7 @@ const App: React.FC = () => {
 
   // Doctor Form State
   const initialFormState: VisitData = {
-    visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '',
+    visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '', email: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
     history: '', surgicalHistory: '', investigationsAdvised: '',
     provisionalDiagnosis: '', icdCode: '',
@@ -588,17 +588,18 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 md:gap-6">
                 {[
                   { label: 'Age', key: 'age', ph: '' },
                   { label: 'Gender', key: 'gender', ph: 'M/F/O' },
                   { label: 'Weight (kg)', key: 'weight', ph: '' },
                   { label: 'Height (cm)', key: 'height', ph: '' },
                   { label: 'Contact', key: 'contactNumber', ph: '' },
+                  { label: 'Email', key: 'email', ph: '' },
                 ].map(f => (
                   <div key={f.key} className="space-y-2">
                     <label className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">{f.label}</label>
-                    <input type="text" value={(formData as any)[f.key]} onChange={e => setFormData({...formData, [f.key]: e.target.value})} className="w-full bg-[#161e31] p-4 md:p-6 rounded-[1.2rem] md:rounded-[2rem] border border-white/5 text-white font-black text-center" placeholder={f.ph} />
+                    <input type="text" value={(formData as any)[f.key]} onChange={e => setFormData({...formData, [f.key]: e.target.value})} className="w-full bg-[#161e31] p-3 md:p-4 rounded-[1rem] md:rounded-[1.5rem] border border-white/5 text-white font-black text-center text-sm md:text-base" placeholder={f.ph} />
                   </div>
                 ))}
               </div>
@@ -1075,7 +1076,7 @@ const App: React.FC = () => {
       {/* Payment QR Modal */}
       {showPaymentQR && (
         <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-4 md:p-6 animate-in zoom-in duration-300">
-          <div className="bg-[#101726] border border-white/10 p-8 md:p-10 rounded-[3rem] md:rounded-[4rem] w-full max-w-md space-y-8 md:space-y-10 shadow-2xl">
+          <div className="bg-[#101726] border border-white/10 p-8 md:p-10 rounded-[3rem] md:rounded-[4rem] w-full max-w-sm space-y-8 md:space-y-10 shadow-2xl">
             <div className="flex justify-between items-center"><h3 className="text-2xl md:text-3xl font-black text-white">Clinical Payment</h3><button onClick={() => setShowPaymentQR(false)} className="p-3 bg-white/5 rounded-xl text-slate-500 shadow-xl"><XCircle size={24} /></button></div>
             <div className="bg-white p-4 md:p-6 rounded-[2.5rem] md:rounded-[3rem] aspect-square overflow-hidden shadow-2xl flex items-center justify-center border-4 md:border-8 border-slate-950">
               <img src="https://lh3.googleusercontent.com/d/14Ax9aU31Gaja2kAvnLbIFLbhbbAiB4D5" alt="Payment QR" className="w-full h-full object-contain" />
