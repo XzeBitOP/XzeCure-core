@@ -1,10 +1,22 @@
-
 import { ServiceGroup } from './types';
 
 export const SECRET_PIN = '472892';
 
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE AFTER DEPLOYING
 export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_URL/exec';
+
+// GOOGLE FORM AUTOMATION CONSTANTS
+export const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLScOIVLVh9W38cEHxdp8i4ikeN0u9iSJZpD_hcI5xuGxXkFhrQ/formResponse";
+export const GOOGLE_FORM_ENTRIES = {
+  patientName: "entry.200555959",
+  contactNumber: "entry.1776110132",
+  email: "entry.33385019",
+  service: "entry.1864501696",
+  consultant: "entry.768268222"
+};
+
+// PASTE YOUR N8N WEBHOOK URL HERE
+export const N8N_WEBHOOK_URL = 'https://YOUR_N8N_INSTANCE/webhook/YOUR_WEBHOOK_ID';
 
 export interface ConsultantEntry {
   name: string;

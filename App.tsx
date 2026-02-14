@@ -4,7 +4,7 @@ import {
   Pill, ArrowLeft, Bell, Check, FileUp, 
   HeartPulse, Siren, Trash2, 
   Plus, FileText, FileDown, CreditCard, Thermometer, 
-  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video, Cloud, Building2
+  Activity, Scale, Calendar, ClipboardList, ChevronRight, CalendarPlus, Clock, Share2, AlertTriangle, History, MapPin, Truck, ShieldAlert, Image as ImageIcon, Smartphone, QrCode, TestTube, Search, Hash, UserCheck, Timer, BookmarkCheck, ShoppingCart, Pencil, Ruler, Clipboard, BriefcaseMedical, RefreshCcw, Save, RotateCcw, Settings, Video, Cloud, Building2, Mail
 } from 'lucide-react';
 import { SECRET_PIN, SERVICE_GROUPS, DEFAULT_LOGO, DEFAULT_LETTERHEAD, COMMON_ICD_CODES, APPS_SCRIPT_URL, CONSULTANTS_DATABASE } from './constants';
 import { VisitData, Medication, DailyVital, Appointment, MedicineAdviceItem, SavedVisit } from './types';
@@ -12,6 +12,8 @@ import { storageService } from './services/storageService';
 import { generateVisitPdf } from './services/pdfService';
 import { notificationService } from './services/notificationService';
 import { googleSheetService } from './services/googleSheetService';
+import { googleFormService } from './services/googleFormService';
+import { n8nService } from './services/n8nService';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Configure pdfjs worker
@@ -52,9 +54,12 @@ const App: React.FC = () => {
   const [savedVisits, setSavedVisits] = useState<SavedVisit[]>([]);
   const [showConsultantList, setShowConsultantList] = useState(false);
 
+  // Automation Refs
+  const lastSyncedLead = useRef<string>('');
+
   // Doctor Form State
   const initialFormState: VisitData = {
-    visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '',
+    visitId: '', staffName: '', patientName: '', age: '', gender: '', contactNumber: '', email: '',
     address: '', weight: '', height: '', bmi: '', complaints: '', duration: '',
     history: '', surgicalHistory: '', investigationsAdvised: '',
     provisionalDiagnosis: '', icdCode: '',
@@ -75,6 +80,41 @@ const App: React.FC = () => {
   const [icdSuggestions, setIcdSuggestions] = useState<typeof COMMON_ICD_CODES>([]);
   const icdRef = useRef<HTMLDivElement>(null);
   const consultantRef = useRef<HTMLDivElement>(null);
+
+  // Lead Auto-Sync Logic (Debounced)
+  useEffect(() => {
+    if (selectedRole !== 'doctor') return;
+
+    // consultantName is extracted here to fulfill the requirement of mapping it to the form
+    const { patientName, contactNumber, email, consultantName, serviceName } = formData;
+    
+    // Only trigger if we have at least name and contact
+    if (patientName.length > 2 && contactNumber.length > 9) {
+      const currentLeadString = `${patientName}|${contactNumber}|${email}|${consultantName}`;
+      
+      // Prevent re-syncing if the identity string hasn't changed
+      if (currentLeadString === lastSyncedLead.current) return;
+
+      const timer = setTimeout(() => {
+        setIsSyncing(true);
+        googleFormService.submitLead({
+          patientName,
+          contactNumber,
+          email,
+          serviceName,
+          consultantName: consultantName // Correctly mapping as requested
+        }).then((success) => {
+          if (success) {
+            lastSyncedLead.current = currentLeadString;
+          }
+        }).finally(() => {
+          setIsSyncing(false);
+        });
+      }, 2000); // 2-second debounce
+
+      return () => clearTimeout(timer);
+    }
+  }, [formData.patientName, formData.contactNumber, formData.email, formData.consultantName, selectedRole]);
 
   // Sync manual patient info to storage
   useEffect(() => {
@@ -179,6 +219,7 @@ const App: React.FC = () => {
       setFormData(initialFormState);
       setPdfBlob(null);
       setIcdSuggestions([]);
+      lastSyncedLead.current = '';
       storageService.saveFormDraft(initialFormState);
       showToast('Form cleared for new patient', 'info');
     }
@@ -415,6 +456,15 @@ const App: React.FC = () => {
         location: userLocation ? `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}` : 'N/A'
       }).finally(() => setIsSyncing(false));
 
+      // Trigger n8n workflow
+      n8nService.triggerWorkflow({
+        patientName: finalData.patientName,
+        contactNumber: finalData.contactNumber,
+        email: finalData.email,
+        serviceGiven: finalData.serviceName,
+        amount: finalData.serviceCharge
+      });
+
       showToast('Report Captured & Synced', 'success');
     } catch (err) {
       showToast('PDF Engine Error', 'error');
@@ -588,13 +638,29 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                <div className="space-y-2">
+                  <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Email Address</label>
+                  <div className="relative group">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500"><Mail size={18} /></div>
+                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="patient@mail.com" className="w-full bg-[#161e31] border border-white/5 p-4 md:p-6 pl-14 md:pl-16 rounded-[1.2rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white focus:border-blue-500 outline-none" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Contact Number</label>
+                  <div className="relative group">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500"><Smartphone size={18} /></div>
+                    <input required type="text" value={formData.contactNumber} onChange={e => setFormData({...formData, contactNumber: e.target.value})} className="w-full bg-[#161e31] border border-white/5 p-4 md:p-6 pl-14 md:pl-16 rounded-[1.2rem] md:rounded-[2rem] text-base md:text-lg font-bold text-white focus:border-blue-500 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 {[
                   { label: 'Age', key: 'age', ph: '' },
                   { label: 'Gender', key: 'gender', ph: 'M/F/O' },
                   { label: 'Weight (kg)', key: 'weight', ph: '' },
                   { label: 'Height (cm)', key: 'height', ph: '' },
-                  { label: 'Contact', key: 'contactNumber', ph: '' },
                 ].map(f => (
                   <div key={f.key} className="space-y-2">
                     <label className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">{f.label}</label>
