@@ -5,7 +5,7 @@ export const SECRET_PIN = '472892';
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE AFTER DEPLOYING
 export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_URL/exec';
 
-// GOOGLE FORM AUTOMATION CONSTANTS
+// GOOGLE FORM AUTOMATION CONSTANTS (DOCTOR HUB LEADS)
 export const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLScOIVLVh9W38cEHxdp8i4ikeN0u9iSJZpD_hcI5xuGxXkFhrQ/formResponse";
 export const GOOGLE_FORM_ENTRIES = {
   patientName: "entry.200555959",
@@ -13,6 +13,20 @@ export const GOOGLE_FORM_ENTRIES = {
   email: "entry.33385019",
   service: "entry.1864501696",
   consultant: "entry.768268222"
+};
+
+// GOOGLE FORM AUTOMATION CONSTANTS (PATIENT PORTAL VITALS)
+export const GOOGLE_PATIENT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfG1IOCXGZj6EDRW6XeShnaobQzxMgyRV5EwFEk2bnDnE062A/formResponse";
+export const GOOGLE_PATIENT_FORM_ENTRIES = {
+  patientName: "entry.534657666",
+  consultantName: "entry.1256186146",
+  bp: "entry.1825925436",
+  temp: "entry.934297216",
+  hr: "entry.1387668940",
+  spo2: "entry.62151591",
+  rbs: "entry.834722516",
+  email: "entry.913860886",
+  contactNumber: "entry.432392514"
 };
 
 // PASTE YOUR N8N WEBHOOK URL HERE
@@ -101,7 +115,7 @@ export const COMMON_ICD_CODES = [
   { code: 'J20.9', description: 'Acute bronchitis, unspecified' },
   { code: 'J44.9', description: 'Chronic obstructive pulmonary disease, unspecified' },
   { code: 'J45.909', description: 'Unspecified asthma, uncomplicated' },
-  { code: 'K21.9', description: 'Gastro-esophageal reflux disease without esophagitis' },
+  { code: 'K21.9', description: 'Gastro-esophageal reflux disease without esophysagitis' },
   { code: 'M54.5', description: 'Low back pain' },
   { code: 'N39.0', description: 'Urinary tract infection, site not specified' },
   { code: 'R05', description: 'Cough' },
